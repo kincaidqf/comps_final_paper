@@ -1,0 +1,53 @@
+\documentclass[10pt,twocolumn]{article}
+
+% use the oxycomps style file
+\usepackage{oxycomps}
+
+% usage: \fixme[comments describing issue]{text to be fixed}
+% define \fixme as not doing anything special
+\newcommand{\fixme}[2][]{#2}
+% overwrite it so it shows up as red
+\renewcommand{\fixme}[2][]{\textcolor{red}{#2}}
+% overwrite it again so related text shows as footnotes
+%\renewcommand{\fixme}[2][]{\textcolor{red}{#2\footnote{#1}}}
+
+\bibliography{references.bib}
+
+% include metadata in the generated pdf file
+\pdfinfo{
+    /Title (TimeGAN Optimization on Small Datasets: Generating and Evaluating Synthetic Macroeconomic Time Series)
+    /Author (Kincaid Fries)
+}
+
+% set the title and author information
+\title{TimeGAN Optimization on Small Datasets: Generating and Evaluating Synthetic Macroeconomic Time Series}
+\author{Kincaid Fries}
+\affiliation{Occidental College}
+\email{kfries@oxy.edu}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\subsection{Background}
+The use of machine learning in financial prediction has grown rapidly due to its ability to model complex, multivariable relationships and generate realistic predictions. Machine learning is particularly effective in equities markets where thousands of points of training data are available daily for stock movements. In contrast, macroeconomic data takes months of study, surveying, and research to come up with even a single realistic measurement. Consequently, macroeconomic forecasting models rely on quarterly historical data at best. \textcite{baltazar2020sustainableeconomies} note that small datasets affect the reliability of macroeconomic modelling. Other challenges like changes in calculation methods, unavailability of data for certain time periods, and changes in indicator definitions make it hard to train macroeconomic models without overfitting to small datasets. Recent advances in synthetic data generation offer a promising alternative, allowing researchers to create realistic simulations of economic behavior without relying solely on historical data.
+
+\subsection{Goal}
+The goal of my senior comprehensive project is to evaluate whether a machine learning model trained on small macroeconomic datasets can be used to generate realistic synthetic time series. By normalizing macroeconomic indicators across different economies, I hope to address the issue of relatively limited time-series for a single country by taking training data from multiple countries. My project will explore whether synthetic time-series produced by a model trained on data from multiple countries could potentially address the problem of lack of data availability, and serve as a valid counterpart to real economic data in forecasting applications.
+
+Abstracting from this project, data availability is becoming an increasingly prevalent issue as the technological world embraces machine learning. Major data companies like Meta and OpenAI have faced lawsuits over data piracy, and smaller companies want to utilize the power of machine learning to drive decision making, but may face issues with security or compliance that prevent them from training models. If we had the power to take a small dataset and extend it, or create realistic alternative datasets using synthetic data generation, then a number of these problems could be solved. Security, privacy, and copyright could be better preserved while still having access to the quantity of data needed to train machine learning models. 
+
+\subsection{Approach}
+I will implement a TimeGAN model, which combines a supervised autoencoder to learn temporal dynamics with a generative adversarial network (GAN) to generate realistic synthetic data [CITATION NEEDED]. The model will be trained using macroeconomic data taken from developed, free-market economies, to ensure there is consistency in the underlying macroeconomic trends it identifies. To evaluate whether the generated synthetic data is realistic, I will compare the properties of the synthetic data with real world data using a number of statistical tests focused on distributional similarity, cross time similarity, and novelty. Additionally, I will examine the performance of a forecasting model using the train-synthetic test-real (TSTR) method–training a simple forecasting model on the synthetic data to predict the next step in the real data. Through TSTR evaluation I will be able to assess the potential viability of using synthetic data in training models for real data tasks.
+
+By looking at both statistical factors and forecasting model performance, I hope to have a comprehensive framework for assessing the viability of the synthetic data. I will then iterate over the model, adjusting training parameters in order to see what areas are particularly effective for model optimization on small datasets.
+
+\printbibliography
+
+\clearpage
+
+\onecolumn
+
+\end{document}
