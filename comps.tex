@@ -58,9 +58,14 @@ By looking at both statistical factors and forecasting model performance, I hope
 
 \section{Conclusion and Future Work}
 
-\section{Replication Instructions}
-
-\section{Architecture Overview}
+% Defer appendix material until after the bibliography so the bibliography
+% appears as part of the main paper and the following sections become Appendix.
+\AtEndDocument{%
+    \clearpage
+    \appendix
+    \section{Replication Instructions}
+    \section{Architecture Overview}
+}
 
 \printbibliography
 
