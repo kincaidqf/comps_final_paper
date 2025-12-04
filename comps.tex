@@ -45,6 +45,46 @@ I will implement a TimeGAN model, which combines a supervised autoencoder to lea
 By looking at both statistical factors and forecasting model performance, I hope to have a comprehensive framework for assessing the viability of the synthetic data. I will then iterate over the model, adjusting training parameters in order to see what areas are particularly effective for model optimization on small datasets.
 
 \section{Technical Background}
+\subsection{Macroeconomic Indicators}
+\subsubsection{Overview}
+Macroeconomic indicators are data points which quantify the health of an entire economic market, usually at a country-wide level. They are impactful across all levels of society and business, and are even politically salient, as \textcite{ravallion2021macroeconomicmisery} notes the impact of macroeconomic indicators on electoral outcomes. The macroeconomic indicators that I will focus on will be gross domestic product growth (GDP), inflation rate (I), unemployment rate (R), and population growth (P), which were selected with insight from the research of  \textcite{ravallion2021macroeconomicmisery} and \textcite{baltazar2020sustainableeconomies}. Notably, population growth is not typically considered a macroeconomic indicator, but it helps control for unexplained factors in the other indicators. For example, if GDP and unemployment rates both go up, a possible explanation would be there was a substantial increase in population.
+
+\subsubsection{Selected Indicators}
+\begin{itemize}
+\item \textbf{GDP}: measures the entire monetary value of an economy, including all the goods and services produced by it and its constituents, its trade with other countries, and even the value of the intellectual property in the country. I will be using the rate of GDP growth expressed as a percentage change in GDP for this project.
+  \item \textbf{Inflation Rate}: is the percent change in price of a pre-defined theoretical ‘basket’ of goods. The ‘basket’ is a collection of common household goods which every individual regardless of income level will regularly purchase.  
+\item \textbf{Unemployment Rate}: is the proportion of the unemployed labor force actively seeking work to the total number of people in the labor market. A high unemployment rate means there are a significant number of individuals without income seeking employment. The efficient unemployment rate is typically around 5\% \cite{voxeuUnemployment}.
+  \item \textbf{Population Growth}: is the percent change in the population of study, measured annually
+  \end{itemize}
+
+\subsubsection{Relevance of Macro-Indicators}
+\textcite{ravallion2021macroeconomicmisery} discusses how macroeconomic indicators must be viewed in conjunction with each other, as no individual measure fully captures the state of the economy. When inflation is high, there is usually excess spending in the economy, which increases the amount of goods and services being purchased, which in turn increases GDP. The heightened demand can lead to increased hiring and lower unemployment. Whenever one of the indicators changes, it will surely have an impact on the other indicators and the overall state of the economy. This project will look at each of the indicators outlined above in order to capture a holistic picture of the economy. Macroeconomic forecasting is used by banks, the federal government, and a variety of institutions both in and out of the economic industry. For example, \textcite{baltazar2020sustainableeconomies} detail how macroeconomic models can be used by banks to find their best response to economic shocks, potentially helping avoid situations like the 2008 financial crisis.
+
+\subsection{Relevent Machine Learning Terminology}
+\textbf{Supervised learning} uses labelled data and produces consistent outputs for given input. While effective for forecasting, the labelling is demanding and it is not well suited for maintaining temporal dynamics in time series generation \cite{yoon2019timeseriesgenerative}.\\
+\indent\textbf{Unsupervised learning} identifies patterns in unlabelled data. Due to not requiring the labelling step, it is easier to implement than supervised learning, but it can be a high compute ‘black box’ where the internal steps aren’t understood.\\
+\indent\textbf{Recurrant Neural Networks} are an artificial neural networks that are more suited for processing sequential data. Traditional neural networks pass data between nodes without ‘remembering’ the previous node. RNNs pass data with an additional parameter allowing nodes to observe both the current and previous state in order to learn temporal dynamics.\\
+\indent\textbf{Generative Adversarial Networks (GANs)} consist of a generator neural network competing with a discriminator to produce synthetic data that the discriminator can’t detect \cite{awsGAN}. As the generative network gets better at generating synthetic data, the discriminator network will become worse at determining the difference between real and synthetic data.\\
+\indent\textbf{Latent Space} refers to the compression of input data into a lower dimensional space that preserves essential features of the data’s structure \cite{ibmLatentSpace}. \\
+\indent\textbf{Autoencoders} are the primary neural networks that learn to encode data to a latent space and then reconstruct it, allowing them to learn the structure of the data in the process \cite{ibmLatentSpace}.
+
+\subsection{Choosing TimeGAN}
+TimeGAN stands for \textbf{Time-Series Generative Adversarial Network}, a proprietary machine learning model created by \textcite{yoon2019timeseriesgenerative} combining supervised, unsupervised, and adversarial learning to encourage the model to follow the temporal dynamics of training data. The goal of their research stems from the inadequacy of other machine learning models to generate synthetic data that accurately takes temporal correlations into account \cite{yoon2019timeseriesgenerative}. 
+Unlike other GANs, TimeGAN is trained on a 3D dataset of multiple independent time-series, shaped as $[N, L, D]$, where $N$ is the number of sequences (e.g., countries), $L$ is the number of time steps, and $D$ is the number of dimensions (e.g., GDP, CPI). This makes TimeGAN perfect for my goal of training a model on multiple countries data.\\
+
+\subsection{TimeGAN Architecture}
+The main components of the TimeGAN architecture are pictured in Figure \ref{fig:TimeGAN-Architecture}. Notably the supervisor is not pictured, but operates in the latent space between the embedder and recovery networks. The partial derivates $\delta\mathcal{L}$ represent the loss values used to update each network during training. The training parameters (constant in each training iteration) are represented as $\theta$.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\columnwidth]{TimeGAN training.png}
+    \caption{Components of TimeGAN Training Architecture. Adapted from \textcite{yoon2019timeseriesgenerative}.}
+    \label{fig:TimeGAN-Architecture}
+\end{figure}
+
+\subsection{Loss Functions}
+
+
 
 \section{Prior Work}
 
@@ -95,7 +135,6 @@ In the research performed by \textcite{livieris2024anevaluationframework}, they 
 \end{itemize}
 \subsubsection{Key Takeaway}
 While the anomaly detection test is interesting, I think within my overall framework of evaluating distributional similarity, it is not necessary, as anomalous synthetic data will be clearly visible from other evaluation metrics. The Wasserstein Distance however, I will use as part of my distributional evaluation. Implementing the combination with Cramer’s V-test is not a commonly accepted practice and makes the results a bit less interpretable, so I will focus just on Wasserstein Distance rather than the combined test. Additionally, I will implement the novelty test through a simple nearest neighbors Euclidian distance calculation.
-
 
 \section{Methods}
 
