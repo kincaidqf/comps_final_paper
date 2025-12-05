@@ -68,6 +68,7 @@ Macroeconomic indicators are data points which quantify the health of an entire 
 \end{description}
 
 \subsection{Choosing TimeGAN}
+\label{sec:choosing_timegan}
 TimeGAN stands for \textbf{Time-Series Generative Adversarial Network}, a proprietary machine learning model created by \textcite{yoon2019timeseriesgenerative} combining supervised, unsupervised, and adversarial learning to encourage the model to follow the temporal dynamics of training data. The goal of their research stems from the inadequacy of other machine learning models to generate synthetic data that accurately takes temporal correlations into account \cite{yoon2019timeseriesgenerative}. 
 Unlike other GANs, TimeGAN is trained on a 3D dataset of multiple independent time-series, shaped as $[N, L, D]$, where $N$ is the number of sequences (e.g., countries), $L$ is the number of time steps, and $D$ is the number of dimensions (e.g., GDP, CPI). This makes TimeGAN perfect for my goal of training a model on multiple countries data.
 
@@ -99,7 +100,7 @@ The autoencoder uses mean squared error; a standard loss function in machine lea
     \mathcal{L}_{\text{AE}} = \frac{1}{L-1}\sum_{t=0}^{L-1}\mathbb{E}\left[\left\|X_t - \hat{X}_t\right\|^2\right]
 \end{equation}
 
-First the function takes the squared absolute value of the difference between \(X_t\) and \(\hat{X}_t\), where \(X_t\) is the real data fed into the embedder at time step \(t\), and \(\hat{X}_t\) is the data recovered from the latent embedding by the recovery network. The sum of squared error terms is averaged over the number of time steps \(L$ (the length of the series).
+First the function takes the squared absolute value of the difference between \(X_t\) and \(\hat{X}_t\), where \(X_t\) is the real data fed into the embedder at time step \(t\), and \(\hat{X}_t\) is the data recovered from the latent embedding by the recovery network. The sum of squared error terms is averaged over the number of time steps $L$ (the length of the series).
 
 \subsubsection{Supervised Loss}
 The supervised loss is also a mean squared error computed over latent representations shifted by one time step. Here, $\hat{H}_{t+1}$ denotes the supervisor network's prediction of the latent state at time $t+1$, and $H_{t+1}$ denotes the true latent state at time $t+1$. The supervised loss therefore encourages the model to learn realistic temporal transitions in the latent space.
@@ -177,8 +178,44 @@ In the research performed by \textcite{livieris2024anevaluationframework}, they 
 While the anomaly detection test is interesting, I think within my overall framework of evaluating distributional similarity, it is not necessary, as anomalous synthetic data will be clearly visible from other evaluation metrics. The Wasserstein Distance however, I will use as part of my distributional evaluation. Implementing the combination with Cramer’s V-test is not a commonly accepted practice and makes the results a bit less interpretable, so I will focus just on Wasserstein Distance rather than the combined test. Additionally, I will implement the novelty test through a simple nearest neighbors Euclidian distance calculation.
 
 \section{Methods}
+\subsection{Sourcing Macroeconomic Data}
+For my macroeconomic training data, I used the World Bank’s World Development Indicators (WDI) online database \cite{worldbank_wdi_2024}. They have data for every country in the world going back decades, with a variety of data points normalized to the same units available for free use. From there I gathered a training dataset of the USA, Japan, Australia, UK, Canada, South Korea, Denmark, Germany and France–countries which I chose for having developed economies with reliable data going back 60+ years.
+
+\subsection{Data Pre-Processing}
+My data points of GDP growth, inflation rate, unemployment rate, and population growth were chosen deliberately to represent a snapshot of countries macroeconomic conditions without having collinearity between any of the features. GDP growth gives an idea of how the dollar quantification of the economy changes annually, while inflation rate helps control for the actual value of those dollars change adjusted for inflation. Unemployment rate along with inflation rate are considered two of the most revealing macroeconomic indicators, while population growth helps to control for some of the variation in unemployment and GDP growth.
+
+In order to control for the absolute value differences between the different indicators and their scaling, everything was processed using a standard min-max scalar compression to [-1,1], with the range of the data being saved in order to decompress the synthetic series at the end for comparison.
+
+The most significant pre-processing decision that I made was to divide the datasets into batches of sliding windows. With only 9 training countries, without any changes I would have had a [9, 56, 4] training dataset (see \ref{sec:choosing_timegan} for training shape). With only 9 input series of length 56, this was simply too small of a dataset to do any real training on. As a way of combatting this, I broke each time series into a set of sliding windows (see Figure \ref{fig:sliding-window}). A window represents a sequence of a chosen length; in this case I chose 24 as the window length, as a 24 year period is a long enough time to observe macroeconomic changes while still allowing for the data to be divided up into many sequences. My stride length for the sliding windows was 1, so the start time of each window was incremented by 1. After cleaning to ignore windows which were missing datapoints, this left me with 155 windows available for training, with some withheld for testing. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\columnwidth]{sliding_windows.png}
+    \caption{Visualization of sliding window approach to data batching. Each colored box represents a window of length 4, with stride length 1.}
+    \label{fig:sliding-window}
+\end{figure}
+
+Though windows won’t all be independent of each other, this method allows the network to learn the dynamics of short sequences through exposure to a much higher number of sequences. With a [9, 56, 4] training dataset the network is exposed to 9x56=504 training steps. On a [64, 24, 4] training batch size as I used for many of my tests, the model is exposed to 64x24=1536 training steps. Even though there will be overlap, using 64/155 randomly sampled batches at a time minimizes overlap, and the increased training steps is worth the slight increase in risk of overfitting.
+
+\subsection{TimeGAN Implementation}
+For the actual TimeGAN model implementation itself I mostly followed the original repository, with a few unique implementation decisions to hopefully benefit my small dataset use case. The model is built on the TensorFlow library, with the data represented as tensors and the neural networks being built into as a tensor graph. Due to updates in the TensorFlow library since the original TimeGAN paper, some structural changes were needed to switch to Keras versioning from the original. These changes affect the way some calls are made but do not affect the performance/implementation of the model.
+
+For clarity's sake, I decided to move the actual neural cell instantiation into a function in utils.py rather than call it directly from tensorflow in neural networks as done in the original repository. This allowed me to experiment with changing RNN cell type within utils.py without having to change it individually in each network. 
+
+For connecting the neural network I decided to use a Xaviar Initialization on the weight matrix for the neural connections. This is done to introduce some slight variation and randomness into the weight matrix for each training iteration of the neural networks. A Xaviar Init takes input of a shape, and outputs a random weight matrix with slight noise added for connecting the nodes within that shape. Since the scale and variation of the macroeconomic indicators used is not consistent, and training was done on a space normalized from [-1,1], the noise ensures that no one feature is being overemphasized across the entirety of training in this compressed space.
+
+For the same reasons, I use an Adam Optimizer called on the autoencoder, generator, and discriminator to optimize training for minimizing loss functions. The Adam Optimizer is an adaptive learning rate optimization algorithm (standard TensorFlow function) that takes an input of a learning rate and will then adjust the learning rate between features during training by that input rate if it detects that certain features are being over or under emphasized. 
+
+\subsection{Study Method}
+In conducting my study after the base implementation I will conduct evaluation on the synthetic generated data using the evaluation metrics \ref{sec:evaluation-metrics} . I will then observe the primary areas where I can improve on the performance of my model, and make an informed decision on parameter updates for the next training iteration. I will repeat the process until I have experimented in a meaningful way with all training parameters, and have a set of informed changes that improve TimeGAN performance on a small dataset. I will not attempt to minutely adjust parameters to reach an optimal set, but will focus on what adjustments improve performance specifically to my small dataset use case. 
+
+If I make a parameter change and see no noticeable improvement in the evaluation metrics for the synthetic data produced by that training cycle then I will discard the change. However, if there are not improvements in the synthetic data but there are notable improvements in loss values throughout training then I will keep the adaptation as an improvement in training health. Any parameter adjustments which have a notably positive impact I will treat as part of the new baseline, and will carry forward into the next trial.
+
+After implementing the model and performing my iterative experiments over parameter adjustments, I hope to have a set of justified, meaningful changes that correlate to improved synthetic data quality. Through this approach I hope to justify that it is possible to optimize TimeGAN over small datasets to effectively generate synthetic data, as well as identify areas for future improvements in TimeGAN performance.
 
 \section{Evaluation Metrics}
+\label{sec:evaluation-metrics}
+
 
 \section{Results and Discussion}
 
