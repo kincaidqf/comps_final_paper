@@ -103,7 +103,7 @@ The autoencoder uses mean squared error; a standard loss function in machine lea
 First the function takes the squared absolute value of the difference between \(X_t\) and \(\hat{X}_t\), where \(X_t\) is the real data fed into the embedder at time step \(t\), and \(\hat{X}_t\) is the data recovered from the latent embedding by the recovery network. The sum of squared error terms is averaged over the number of time steps \(L\) (the length of the series).
 
 \subsubsection{Supervised Loss}
-The supervised loss is also a simple mean squared error calculation, however run over latent representations shifted by 1 time step; where Ĥt is the supervisor network’s prediction of next step latent representation, and Ht+1 is the actual next step latent prediction. The supervised loss helps the generator learn to produce synthetic data that is going to have realistic time increments.
+The supervised loss is also a mean squared error computed over latent representations shifted by one time step. Here, $\hat{H}_{t+1}$ denotes the supervisor network's prediction of the latent state at time $t+1$, and $H_{t+1}$ denotes the true latent state at time $t+1$. The supervised loss therefore encourages the model to learn realistic temporal transitions in the latent space.
 
 \begin{equation}
     \mathcal{L}_{\text{Sup}} = \frac{1}{L-1}\sum_{t=0}^{L-2}\mathbb{E}\left[\left\|H_{t+1} - \hat{H}_{t+1}\right\|^2\right]
@@ -115,6 +115,17 @@ The generator loss has two components. First there is the adversarial loss, whic
 \begin{equation}
         \mathcal{L}_{\text{G}} = -\mathbb{E}\left[\log\left(\sigma\!\left(D_{\text{logit}}\!\left(\hat{H}\right)\right)\right)\right] + \gamma \mathcal{L}_{\text{Sup}}
 \end{equation}
+
+This loss function first takes a logit, which is the raw unbounded output of the discriminator on the synthetic latent sequence $\hat{H}$, and passes it through the sigmoid function which compresses it into a probability from $[0,1]$. A logit is a score, not a probability, so this term can be interpreted as: $\sigma\!\big(D_{\text{logit}}(\hat{H})\big)$ = the probability of seeing a logit value of $D_{\text{logit}}(\hat{H})$. The logit to sigmoid process is done because the discriminator does not output raw probabilities, and internally it makes the derivatives of the loss function much easier to derive. The negative coefficient is due to the fact that loss functions always aim to penalize error rather than reward success. Since the generator is trying to minimize the probability that its synthetic data is labelled synthetic by the generator, the adversarial element of this loss function is negative.
+
+\subsubsection{Discriminator Loss}
+The discriminator loss function uses a standard function for yes no classification called binary cross-entropy. Binary cross-entropy is made up of two components, the probability score of assigning fake data the label of fake, and the probability score of assigning real data the label of fake. 
+
+\begin{equation}
+    \mathcal{L}_{\text{D}} = -\mathbb{E}\left[\log\left(\sigma\!\left(D_{\text{logit}}\!\left(H\right)\right)\right)\right] - \mathbb{E}\left[\log\left(1 - \sigma\!\left(D_{\text{logit}}\!\left(\hat{H}\right)\right)\right)\right]
+\end{equation}
+
+Both the supervisor and discriminator use expectation notation $\mathbb{E}[\cdot]$, which denotes the integral over the data probability distribution, e.g.\ $\mathbb{E}_{x\sim p(x)}[f(x)]=\int f(x)\,p(x)\,dx$, and in practice is approximated by a finite-sample average over a mini-batch: $\mathbb{E}_{x\sim p(x)}[f(x)]\approx\frac{1}{m}\sum_{i=1}^m f(x_i)$, where $m$ is the mini-batch size and $x_i$ are the samples.
 
 \section{Prior Work}
 
