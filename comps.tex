@@ -191,11 +191,11 @@ The most significant pre-processing decision that I made was to divide the datas
 \begin{figure}[h]
     \centering
     \includegraphics[width=\columnwidth]{sliding_windows.png}
-    \caption{Visualization of sliding window approach to data batching. Each colored box represents a window of length 4, with stride length 1.}
+    \caption{Visualization of sliding window approach to data batching. Colored boxes represent windows of length 4, with stride length 1. Adapted from \textcite{zhan2024versatile}.}
     \label{fig:sliding-window}
 \end{figure}
 
-Though windows won’t all be independent of each other, this method allows the network to learn the dynamics of short sequences through exposure to a much higher number of sequences. With a [9, 56, 4] training dataset the network is exposed to 9x56=504 training steps. On a [64, 24, 4] training batch size as I used for many of my tests, the model is exposed to 64x24=1536 training steps. Even though there will be overlap, using 64/155 randomly sampled batches at a time minimizes overlap, and the increased training steps is worth the slight increase in risk of overfitting.
+Though windows will not all be independent of each other, this method allows the network to learn the dynamics of short sequences through exposure to a much higher number of sequences. With a [9, 56, 4] training dataset the network is exposed to 9x56=504 training steps. On a [64, 24, 4] training batch size as I used for many of my tests, the model is exposed to 64x24=1536 training steps. Even though there will be overlap, using 64/155 randomly sampled batches at a time minimizes overlap, and the increased training steps is worth the slight increase in risk of overfitting.
 
 \subsection{TimeGAN Implementation}
 For the actual TimeGAN model implementation itself I mostly followed the original repository, with a few unique implementation decisions to hopefully benefit my small dataset use case. The model is built on the TensorFlow library, with the data represented as tensors and the neural networks being built into as a tensor graph. Due to updates in the TensorFlow library since the original TimeGAN paper, some structural changes were needed to switch to Keras versioning from the original. These changes affect the way some calls are made but do not affect the performance/implementation of the model.
@@ -215,6 +215,50 @@ After implementing the model and performing my iterative experiments over parame
 
 \section{Evaluation Metrics}
 \label{sec:evaluation-metrics}
+
+My goal through evaluation is to statistically quantify the ability of the synthetic data to maintain distributional and temporal features while not simply copying or overfitting training data. To achieve this I selected a number of evaluation metrics, as well as implemented a train-synthetic test-real approach as guided by prior work.
+
+\subsection{Feature Distribution: Kolmogorov-Smirnov}
+In order to evaluate the per-feature distribution of my synthetic data the first test I will use is the Kolmogorov-Smirnov (KS) test. The KS test is a cumulative frequency distribution (CFD) comparison test, used by \textcite{bourou2021reviewtabulardata} to evaluate the performance of GANs in generating synthetic data. Their approach inspired me to use the KS test. The KS test finds the maximum vertical distance between two CFDs – in this case a real CFD and synthetic CFD (see Figure INSERT FIGURE NUMBER). 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\columnwidth]{KS2_Example.png}
+    \caption{Visualization of Kolmogorov-Smirnov test between cumulative frequency distributions. From \textcite{wikipedia_kstest}.}
+    \label{fig:ks-test}
+\end{figure}
+
+KS then uses this maximum distance calculation to perform a hypothesis test that the two distributions are not significantly different. If the p-value calculated by the test is less than your desired significance level $\alpha$, then you can reject the null hypothesis that the distributions are not significantly different, and conclude that the sample distribution does not come from the original distribution. The KS test was run on each feature in the dataset, to give a sense of distributional similarity on a per-feature level.
+
+\subsection{Feature Distribution: Wasserstein Distance}
+The second feature distribution test that I will use is Wasserstein Distance, inspired by \textcite{livieris2024anevaluationframework} approach to synthetic data evaluation. The WD is a measurement of the absolute difference or cost to transcribe one distribution onto another. Unlike the KS test which only looks at the individual point of highest difference, the WD looks at the total difference between CFDs. Like the KS test, I use a WD test on a per-feature basis to help evaluate whether one distribution came from another, in my case whether the synthetic distribution was derived from the real distribution. 
+
+You can use WD for hypothesis testing purposes, or since it is revealing of the difference between CFD as a whole, you can also interpret it directly in absolute terms. Between WD and KS tests, I will measure both the maximum and total cumulative difference between real-synth distributions. Since I know that the synthetic distributions came from the real, I will not be using these measurements for hypothesis testing reasons, but simply as a revealing metric about the difference between distributions.
+
+\subsection{Cross Feature Correlation}
+From \textcite{marti2020corrgan}, who applies adversarial techniques to sampling on financial correlation matrices, I took inspiration to use the Frobenius norm of correlation matrices to calculate cross feature correlation. A correlation matrix is a DxD matrix of features with each feature’s correlation coefficient being stored in the corresponding box. In my case the correlation matrices would look like the following:
+
+\begin{table}[ht]
+    \centering
+    \caption{Correlation Matrix of Macroeconomic Indicators}
+    \label{tab:correlation-matrix}
+    {\small%
+    \setlength{\tabcolsep}{4pt}%
+    \renewcommand{\arraystretch}{0.95}%
+    \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l c c c}
+        \hline
+         & \textbf{GDP Growth} & \textbf{Inflation (I)} & \textbf{...} \\
+        \hline
+        \textbf{GDP Growth}     & 1                          & $\mathrm{corr(GDP,I)}$   & ... \\
+        \textbf{Inflation (I)} & $\mathrm{corr(I,GDP)}$ & 1                          & ... \\
+        \textbf{...}            & ...                        & ...                        & ... \\
+        \hline
+    \end{tabular*}%
+    }%
+\end{table}
+
+
+With there being one correlation matrix for both real vs real and one for synthetic vs synthetic distributions. These correlation matrices are then compared using the Frobenius norm, which calculates the same total difference between matrices in the same conceptual manner as calculating Euclidean distance between vectors. Though there is not a standard to aim for in terms of Frobenius score, lower is better as it implies that the relationships between features are more similar. I will be comparing Frobenius norms across tests as one of my essential tests. A lower Frob. norm implies that the datasets have more realistic inter-feature relationships.
 
 
 \section{Results and Discussion}
