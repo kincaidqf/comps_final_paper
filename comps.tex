@@ -305,7 +305,7 @@ In terms of novelty the scores are somewhat hard to interpret because it is a me
 
 \subsection{Final Results: Tuned Model}
 
-Overall from my initial baseline v0 to my final trial v14 there was substantial improvement across distributional, temporal, discriminative, and most importantly downstream application performance. The final positive incremental change of increasing hidden dimensions from 24-32 helped stabilize and enhance performance, balancing the distributional improvements of v4 with the predictive success of v10, while also having the lowest novelty asymmetry of all trials (See TABLE A, TABLE B).
+Overall from my initial baseline v0 to my final trial v14 there was substantial improvement across distributional, temporal, discriminative, and most importantly downstream application performance. See Appendix \ref{appendix:further-results} for further discussion of intermediate results and trials. The final positive incremental change of increasing hidden dimensions from 24-32 helped stabilize and enhance performance, balancing the distributional improvements of v4 with the predictive success of v10, while also having the lowest novelty asymmetry of all trials (See TABLE A, TABLE B).
 
 \begin{table}[t]
     \centering
@@ -384,6 +384,54 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
     \section{Replication Instructions}
     \section{Architecture Overview}
     \label{appendix:architecture-overview}
+    \subsection*{High-Level Repository Layout}
+    \begin{itemize}
+
+        \item \textbf{data/}
+        \begin{itemize}
+            \item \textbf{clean/}
+            \begin{itemize}
+                \item Per-country CSV files from the original 9-country dataset
+                \item \texttt{MacroData.csv} (raw input data from World Bank WDI)
+            \end{itemize}
+
+            \item \textbf{datag2/} (experimental; not essential)
+            \begin{itemize}
+                \item \textbf{clean\_g2/}
+                \begin{itemize}
+                    \item Cleaned data for all countries globally (experimental)
+                    \item \texttt{MacroData\_g2.csv}
+                \end{itemize}
+            \end{itemize}
+        \end{itemize}
+
+        \item \textbf{artifacts/}
+        \begin{itemize}
+            \item \textbf{baseline\_vX/}
+            \begin{itemize}
+                \item \texttt{config.json}
+                \item \texttt{train\_scaled.npy}, \texttt{val\_scaled.npy}, \texttt{test\_scaled.npy}
+                \item \texttt{train\_orig.npy}, \texttt{val\_orig.npy}, \texttt{test\_orig.npy}
+                \item \texttt{synthetic\_scaled.npy}, \texttt{synthetic\_orig.npy}
+                \item \textbf{results/}
+                \begin{itemize}
+                    \item \texttt{results\_vX\_metrics.json}
+                \end{itemize}
+            \end{itemize}
+        \end{itemize}
+
+        \item \texttt{data\_clean.py}
+        \item \texttt{prep\_windows.py}
+        \item \texttt{utils.py}
+        \item \texttt{timegan.py}
+        \item \texttt{main.py}
+        \item \texttt{eval\_metrics.py}
+        \item \texttt{graphing.py}
+        \item \texttt{sanity.py}
+
+        \item \textbf{.venv/} \hfill (Python virtual environment)
+    \end{itemize}
+
 
     \subsection*{Default Training Parameters}
 
@@ -439,8 +487,10 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
         
         \item \textit{num\_layers}: Number of stacked layers in the recurrent neural network architecture.
     \end{itemize}
-    \section{Additional Results and Explorations}
+    \section{Additional Results and Exploration}
     \subsection{Significant Trials and Results}
+    \label{appendix:further-results}
+
     In each different trial iteration I changed a different parameter of the model, and in some cases I made slight changes to the training process such as adding noise to the discriminator, or changing RNN cell type. Some of the most notable version changes are shown in the table below. The bolded cells represent the best performance of that evaluation metric across the sample experiments.
 
     \begin{table}[h]
@@ -473,6 +523,59 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
     In v4 I decreased the learning rate from 0.001 to 0.0001, which led to substantial improvement in distributional similarity and the best autocorrelation score across all tests (\ref{table:appendix-intermediate-results}). The goal was to reduce overfitting on the small dataset by decreasing the rate at which the model learns. The TSTR score was significantly lower from v3 to v4, which indicates that the actual downstream applicability of this version was far better than the previous, and back toward the baseline. In these early tests everything came almost as a direct tradeoff. In the areas where v4 showed improvement from v3, it also lost some of the improvements that v3 made over v0. Notably though, v4 had much smoother loss gradients in the supervised and autoencoder loss, which was a large part of the reason I was inclined to keep it in. The early iterations were largely about improving model health, observed primarily from loss values.
 
     Between v4 and v8 progress stagnated, but in v8 I had somewhat of a breakthrough by adding Gaussian noise with a standard distribution of 0.02 to the input latent sequences. This served to add some additional randomness to the discriminator; a standard stabilization technique in GANs. It helps to prevent the discriminator from becoming too confident too early and slows down its convergence to give time for the generator to learn. With no noise, the discriminator quickly overfits to small differences in the latent space, but the added uncertainty in the discriminator loss helps the generator to better learn more erratic latent transitions. The result was improvements from v0 in Frob Diff, ACF RMSE, and KNN asymmetry, indicating that the model better represented intra-feature dependence, temporal patterns, and better filled the real distribution.
+
+    Interpreting loss values is tricky, because you do want them to converge toward 0 throughout training, but if they ever reach 0 then it is evidence of overfitting, and if they converge too low too quickly then it is evidence of collapse. With the autoencoder, lower loss is not necessarily correlated with better generations. For v10 I halved autoencoder loss in the actual model implementation. This helped decrease the extent that the autoencoder constrained latent space and gave the generator more freedom to generate synthetic data, as until this point all results tended to be repetitive and low-variance. Keeping autoencoder iterations high from v3 allows for convergence to stable loss values, while halving the loss ensures less pull toward exact reconstruction. The result of v10 was a test that was across the board similar to or better than all metrics in v0, but with a significant improvement in one of the most important metrics: TSTR mean. With a v10 score of 0.251, and every other iteration having a TSTR score of over 1, this was a clear and very significant improvement.
+
+    \subsection{Additional Meaningful Changes}
+    There were a few other changes that did not lead to notable changes in evaluative performance, but were observed to improve loss values into a more healthy range. The first was reducing GAN iterations from 3000 to 2000, a change done in v1 that was kept through to the final version v14. In v0, the loss values plummeted (see \ref{table:loss-components}), indicating clear collapse of loss values and overfitting of the model. In v1 the loss values were only slightly better, but visually looking at the gradients of the loss function (printed every 100 iterations in training), it was clear that the final 1000 iterations (from 2000-3000) was the primary area where the collapse was happening.
+
+    \begin{table}[h]
+        \centering
+        \caption{Generator, Discriminator, and Supervised Losses Across Model Versions.}
+        \label{table:loss-components}
+        {\small
+        \setlength{\tabcolsep}{10pt}
+        \renewcommand{\arraystretch}{1.05}
+        \begin{tabular}{l c c c}
+            \toprule
+            \textbf{Version} & $\mathcal{L}_{D}$ & $\mathcal{L}_{G}$ & $\mathcal{L}_{S}$ \\
+            \midrule
+            v0  & 0.0000 & 0.0004 & 0.0003 \\
+            v1  & 0.0001 & 0.0006 & 0.0006 \\
+            v14 & 0.0015 & 0.0019 & 0.0003 \\
+            \bottomrule
+        \end{tabular}
+        }
+    \end{table}
+
+    Part of the improvement in loss values observed between versions v1 and v14 was due to the raising of $\gamma$ from $1$ to $5$ in v2. $\gamma$ is just the weighting of supervisor loss relative to the adversarial loss in the generator. By increasing $\gamma$, the generator learned to place more emphasis on latent temporal transitions, and less emphasis on adversarial objectives, which helped reduce the collapse of loss values and overfitting of the model.
+
+    In v13 I increased the $z_dim$ from 4 to 16. As the model learns from latent reconstructions, adding more dimensions to the noise vectors input to the generator allows for the model to learn more complex, refined relationships (see \ref{table:default-params}). Though the evaluation metrics nor loss values did not change significantly from the introduction of this change in v13, I decided to leave the higher dimensionality of noise vectors in the v14 version, which may have contributed to its ability to balance latent representations, temporal relationships, and novelty.
+
+    \subsection{Dataset Size and g2 Test Results}
+    Out of curiosity, I wanted to test the full extent of the limitations of a small dataset. I re-gathered the same macroeconomic datapoints from the World Bank WDI (\cite{worldbank_wdi_2024}), but this time for the set of all countries in the world. This global dataset had about 717 unique training windows (many countries were omitted during the data cleaning process due to lack of data points). On the larger dataset the model's performance surprisingly varied widely, and was significantly less accurate in every way than the small training set. As you can see from the graphs of unemployment with time (\ref{fig:unemp-g2}) and gdp growth per time step (\ref{fig:gdp-g2}), the synthetic data produced by the global model clustered toward extremes. While the tuned model performed clearly better on the small dataset, I would like to do further research into what specifically made the model with the larger training set produce such anomalous results. My inclination is that the adjustments which lead to optimization on a small dataset may cause either collapse or explosion of loss values on a larger dataset, leading to the model overemphasising the importance of outliers in the original data.
+
+    \begin{figure}[h]
+        \centering
+
+        \begin{minipage}[t]{0.48\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{unempg2.png}
+            \caption{Unemployment Over Time (g2 Synthetic)}
+            \label{fig:unemp-g2}
+        \end{minipage}
+        \hfill
+        \begin{minipage}[t]{0.48\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{gdpg2.png}
+            \caption{GDP Growth Over Time (g2 Synthetic)}
+            \label{fig:gdp-g2}
+        \end{minipage}
+
+    \end{figure}
+
+    I also think that the amount of sequence overlap in sliding windows–a decision which was necessary for increasing the training steps availability on my small dataset–was ultimately harmful to the global dataset. When there are enough original batches for training without implementing sliding windows, then the inclusion of sliding windows just means that trends will be repeated and perhaps overemphasized in training. Since my original countries were chosen for relative stability in their economies while still representing different geographic areas, it makes sense that there were not many extreme values present in the training data. Using all countries in the world however would expose the model to training data from developing economies which are more susceptible to shocks or high inflation. This could be another reason why extreme points are more prevalent in the synthetic data produced by the global dataset, as the global model would be exposed to many sequences with such inconsistent values.
+
 }
 
 \nocite{*}
