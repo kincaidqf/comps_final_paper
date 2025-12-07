@@ -11,10 +11,8 @@
 % overwrite it again so related text shows as footnotes
 %\renewcommand{\fixme}[2][]{\textcolor{red}{#2\footnote{#1}}}
 
-% Use biblatex (default backend=biber). A temporary change to bibtex was used
-% as a fallback during debugging and is now reverted.
-\usepackage[style=numeric,sorting=nyt]{biblatex}
-\addbibresource{references.bib}
+% read references.bib for the bibtex data
+\bibliography{references.bib}
 
 % include metadata in the generated pdf file
 \pdfinfo{
@@ -62,12 +60,12 @@ Macroeconomic indicators are data points which quantify the health of an entire 
 
 \subsection{Relevent Machine Learning Terminology}
 \begin{description}
-    \item[\textit{Supervised learning}] uses labelled data and produces consistent outputs for given input. While effective for forecasting, the labelling is demanding and it is not well suited for maintaining temporal dynamics in time series generation \cite{yoon2019timeseriesgenerative}.
-    \item[\textit{Unsupervised learning}] identifies patterns in unlabelled data. Due to not requiring the labelling step, it is easier to implement than supervised learning, but it can be a high compute ‘black box’ where the internal steps aren’t understood.
-    \item[\textit{Recurrant Neural Networks}] are an artificial neural networks that are more suited for processing sequential data. Traditional neural networks pass data between nodes without ‘remembering’ the previous node. RNNs pass data with an additional parameter allowing nodes to observe both the current and previous state in order to learn temporal dynamics.
-    \item[\textit{Generative Adversarial Networks (GANs)}] consist of a generator neural network competing with a discriminator to produce synthetic data that the discriminator can’t detect \cite{awsGAN}. As the generative network gets better at generating synthetic data, the discriminator network will become worse at determining the difference between real and synthetic data.
-    \item[\textit{Latent Space}] refers to the compression of input data into a lower dimensional space that preserves essential features of the data’s structure \cite{ibmLatentSpace}.
-    \item[\textit{Autoencoders}] are the primary neural networks that learn to encode data to a latent space and then reconstruct it, allowing them to learn the structure of the data in the process \cite{ibmLatentSpace}.
+    \item[\textbf{Supervised learning}] uses labelled data and produces consistent outputs for given input. While effective for forecasting, the labelling is demanding and it is not well suited for maintaining temporal dynamics in time series generation \cite{yoon2019timeseriesgenerative}.
+    \item[\textbf{Unsupervised learning}] identifies patterns in unlabelled data. Due to not requiring the labelling step, it is easier to implement than supervised learning, but it can be a high compute ‘black box’ where the internal steps aren’t understood.
+    \item[\textbf{Recurrant Neural Networks}] are an artificial neural networks that are more suited for processing sequential data. Traditional neural networks pass data between nodes without ‘remembering’ the previous node. RNNs pass data with an additional parameter allowing nodes to observe both the current and previous state in order to learn temporal dynamics.
+    \item[\textbf{Generative Adversarial Networks (GANs)}] consist of a generator neural network competing with a discriminator to produce synthetic data that the discriminator can’t detect \cite{awsGAN}. As the generative network gets better at generating synthetic data, the discriminator network will become worse at determining the difference between real and synthetic data.
+    \item[\textbf{Latent Space}] refers to the compression of input data into a lower dimensional space that preserves essential features of the data’s structure \cite{ibmLatentSpace}.
+    \item[\textbf{Autoencoders}] are the primary neural networks that learn to encode data to a latent space and then reconstruct it, allowing them to learn the structure of the data in the process \cite{ibmLatentSpace}.
 \end{description}
 
 \subsection{Choosing TimeGAN}
@@ -263,6 +261,15 @@ From \textcite{marti2020corrgan}, who applies adversarial techniques to sampling
 
 With there being one correlation matrix for both real vs real and one for synthetic vs synthetic distributions. These correlation matrices are then compared using the Frobenius norm, which calculates the same total difference between matrices in the same conceptual manner as calculating Euclidean distance between vectors. Though there is not a standard to aim for in terms of Frobenius score, lower is better as it implies that the relationships between features are more similar. I will be comparing Frobenius norms across tests as one of my essential tests. A lower Frob. norm implies that the datasets have more realistic inter-feature relationships.
 
+\subsection{Autocorrelation}
+Thus far the WD, KS and Frobenius Norm tests have compared overall distributions, so in order to more specifically consider temporal features, I decided to include an autocorrelation function comparison (ACF). The ACF measures the correlation between a function and a time delayed version of itself. I compute the ACF score per feature for both the synthetic and real data. I then find the root mean squared error (RMSE) between both the average ACF score across features, and the per feature ACF score of synthetic and real datasets. Using RMSE ensures that larger differences are more heavily penalized. Since I am evaluating multiple features, even if most features have a good autocorrelation score it is alarming if one of them has a particularly bad score, which will be heavily weighted by the RMSE comparison. A lower average ACF RMSE indicates that the temporal features are more similar between the synthetic and real datasets.
+
+\subsection{Predictive (TSTR) Performance}
+As a test of downstream machine learning applicability, I used a train-synthetic test-real method of evaluation similar to \textcite{yuan2024multifacetedevaluation}. The premise is to evaluate whether synthetic data could be used as a viable proxy for real data by training a simple model purely on synthetic data, then evaluating its performance on real data. For my application, I used a stock linear regression model from TensorFlow trained on synthetic data to predict the next next timestep. The model’s performance was then evaluated using the real data as a test batch, with the difference between actual and predicted quantified as mean squared error. The idea is that using real or synthetic data for training should be irrelevant as long as the synthetic data is realistic. 
+
+\subsection{Novelty}
+For a novelty test, inspired by \textcite{livieris2024anevaluationframework} framework for evaluating synthetic data, I run a K-Nearest Neighbors (KNN) test to find the nearest matched points between the synthetic and real data. For this test I standardize the distributions in order to ensure that different order-of-magnitude features do not skew the results. Then for every point in each distribution I find its nearest neighbor in terms of absolute Euclidean distance. I run this comparison from both synthetic to real and real to synthetic, which allows me to obtain a KNN asymmetry score (difference between synth-to-real and real-to-synth KNN mean) which tells me which direction the distribution is skewed toward. What is interesting is that I actually want the KNN score to be as large as possible without sacrificing distributional and autocorrelational validity. A high KNN score represents that the synthetic data is introducing novelty into the synthetic data it is generating, which if possible while still maintaining distributional/temporal dynamics is the exact goal of this model.
+
 \section{Results and Discussion}
 \subsection{Baseline Model Evaluation}
 My first test of the complete model used only the set of default parameters listed in Table \ref{table:default-params} (Appendix \ref{appendix:architecture-overview}). As a baseline I ran the evaluation metrics over comparisons between real and synthetic data, and between real training data and withheld real data. This established a real-vs-real benchmark for the evaluation methods: realistic values across all metrics indicated the procedures were sound, and parameter adjustments that moved model performance closer to this benchmark were treated as improvements.
@@ -349,7 +356,7 @@ Additionally the v14 test had significantly the lowest KNN asymmetry of all test
     \label{fig:v14-results}
 \end{figure}
 
-Overall between v0 and v14 the improvements almost across the board in evaluation metrics demonstrate that it was possible to take a stock implementation of the TimeGAN model and refine it for my use case. Visually the v14 distribution is clearly still clustered around the mean, which makes sense as it is easy for a model with exposure to a small amount of data to minimize average loss by just generating average values (see \ref{fig:v14-results}). However, the various iterations of parameter adjustments show that novelty and realism does not have to be a trade off, and with the right adjustments the model can be tuned to perform better on small datasets. I do not think that the v14 model is downstream application ready. In fact I would say that until a TSTR score ~0.037 (see \ref{table:baseline-v0-results}) is reached, then the synthetic data cannot be considered to have a real empirical application. As models continue to improve however, I do believe that the notable improvement in performance indicates that adversarial techniques could viably produce synthetic data from small training sets. The ability to optimize across distributional, temporal, and predictive performance through the combined autoencoder, supervised, and adversarial objectives demonstrates the potential future application of the TimeGAN model for accurately capturing the subtle temporal relationships between macroeconomic indicators.
+Overall between v0 and v14 the improvements almost across the board in evaluation metrics demonstrate that it was possible to take a stock implementation of the TimeGAN model and refine it for my use case. Visually the v14 distribution is clearly still clustered around the mean, which makes sense as it is easy for a model with exposure to a small amount of data to minimize average loss by just generating average values (see \ref{fig:v14-results}). However, the various iterations of parameter adjustments show that novelty and realism does not have to be a trade off, and with the right adjustments the model can be tuned to perform better on small datasets. I do not think that the v14 model is downstream application ready. In fact I would say that until a TSTR score around 0.037 (see \ref{table:baseline-v0-results}) is reached, then the synthetic data cannot be considered to have a real empirical application. As models continue to improve however, I do believe that the notable improvement in performance indicates that adversarial techniques could viably produce synthetic data from small training sets. The ability to optimize across distributional, temporal, and predictive performance through the combined autoencoder, supervised, and adversarial objectives demonstrates the potential future application of the TimeGAN model for accurately capturing the subtle temporal relationships between macroeconomic indicators.
 
 \subsection{Avenue for Future Study}
 For future research I would like to compare the performance of the TimeGAN model on small datasets to other non-adversarial methods. Throughout this process I observed that adversarial learning may too heavily penalize generations that are different from the mean when trained on such small datasets. Generating synthetic data at the mean of a distribution is the easiest way to produce stable, low average loss. I noticed that the efforts that I made to decrease the influence of the adversarial component of the model, such as adding noise to the discriminator and increasing gamma lead to some of the most significant improvements in model performance.
@@ -520,7 +527,8 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
 
     \section{Architecture Overview}
     \label{appendix:architecture-overview}
-    \subsection*{High-Level Repository Layout}
+
+    \subsection{High-Level Repository Layout}
     \begin{itemize}
 
         \item \textbf{data/}
@@ -546,9 +554,14 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
             \item \textbf{baseline\_vX/}
             \begin{itemize}
                 \item \texttt{config.json}
-                \item \texttt{train\_scaled.npy}, \texttt{val\_scaled.npy}, \texttt{test\_scaled.npy}
-                \item \texttt{train\_orig.npy}, \texttt{val\_orig.npy}, \texttt{test\_orig.npy}
-                \item \texttt{synthetic\_scaled.npy}, \texttt{synthetic\_orig.npy}
+                \item \texttt{train\_scaled.npy} 
+                \item \texttt{val\_scaled.npy}
+                \item \texttt{test\_scaled.npy}
+                \item \texttt{train\_orig.npy} 
+                \item \texttt{val\_orig.npy} 
+                \item \texttt{test\_orig.npy}
+                \item \texttt{synthetic\_scaled.npy}
+                \item \texttt{synthetic\_orig.npy}
                 \item \textbf{results/}
                 \begin{itemize}
                     \item \texttt{results\_vX\_metrics.json}
@@ -571,7 +584,133 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
     \subsection{Layout Explanation}
     The original TimeGAN repository was less modular than my version. I decided that for my use case I wanted to break each file out into a clear and distinct purpose, which allows the program to run in a modular way, so if you want to adapt to new data uses you can do so file by file. The artifacts folder contains all data results, with both the training/synthetic data saved in each file as well as the evaluation metrics and optionally graphics if you choose to run graphing.py on the trial number. Everything is based around trial numbers, and in main I chose to store trial numbers as elif statements because initially I was running into issues where I would change parameters and then accidentally overwrite results with different parameter runs. This way even if the model is re-run on the same trial number, it will use the original parameters used by that trial number and not rewrite old data. I do not think it is the most efficient and sustainable code design, but it has successfully gotten rid of the issue of rewriting trials.
 
-    \subsection*{Default Training Parameters}
+    \subsection{File Descriptions}
+
+    \begin{itemize}
+
+        \item \textbf{Data Cleaning: \texttt{data\_clean.py}}
+        \begin{itemize}
+            \item \textbf{Purpose:}
+            Takes a raw macroeconomic CSV file (e.g., \texttt{MacroData.csv}) and outputs a set of per-country cleaned CSV files in \texttt{data/clean/}.  
+            This prepares the dataset for sliding-window generation and later model training.
+
+            \item \textbf{Key Uses:}
+            \begin{itemize}
+                \item Load the raw CSV into a Pandas dataframe.
+                \item Normalize, pivot, and restructure columns (e.g., indicator/year formatting).
+                \item Remove NaN values and ensure consistent ordering across years.
+                \item Split the full dataset into individual \texttt{CountryX.csv} files.
+                \item \texttt{clean\_datag2():} performs the same process on the larger G2 dataset with different column naming conventions (experimental extension).
+            \end{itemize}
+        \end{itemize}
+
+
+        \item \textbf{Window Preparation: \texttt{prep\_windows.py}}
+        \begin{itemize}
+            \item \textbf{Purpose:}
+            Takes cleaned per-country CSV files and outputs NumPy arrays of sliding windows, stored as \texttt{*.npy} files in each \texttt{baseline\_vX/} folder.  
+            This produces the \texttt{[N, L, D]} training arrays used by TimeGAN.
+
+            \item \textbf{Key Uses:}
+            \begin{itemize}
+                \item Load cleaned country CSVs into Pandas dataframes.
+                \item Convert each country’s time series into overlapping windows of length \texttt{L}.
+                \item Scale features to the range \texttt{[-1, 1]} to standardize magnitude.
+                \item Output summary dictionaries and NumPy arrays containing training, validation, and test window sets.
+                \item \texttt{prepare\_windows\_global():} global variant used for the G2 dataset (not part of core experiment).
+            \end{itemize}
+        \end{itemize}
+
+
+        \item \textbf{Utilities: \texttt{utils.py}}
+        \begin{itemize}
+            \item \textbf{Purpose:}
+            Provides helper functions and default model parameters.  
+            Takes simple Python objects (dicts, lists, scalars) and returns initialized TensorFlow components, RNN cells, optimizers, and parameter dictionaries.
+
+            \item \textbf{Key Uses:}
+            \begin{itemize}
+                \item Set NumPy and TensorFlow seeds for reproducibility.
+                \item Implement Xavier initialization and Adam optimizer setup.
+                \item Store the base model configuration dictionary.
+                \item Construct RNN cells (either \texttt{lstm} or \texttt{gru}) and stack layers.
+                \item Generate utility functions used throughout model construction and training.
+            \end{itemize}
+        \end{itemize}
+
+
+        \item \textbf{TimeGAN Model Implementation: \texttt{timegan.py}}
+        \begin{itemize}
+            \item \textbf{Purpose:}
+            Takes preprocessed training windows (\texttt{NumPy} arrays) and training parameters (dict), and outputs trained TensorFlow models and synthetic window samples.  
+            Also stores the computation graph and handles for running networks.
+
+            \item \textbf{Key Uses:}
+            \begin{itemize}
+                \item Define Embedder, Recovery, Generator, Supervisor, and Discriminator networks.
+                \item Build and store TensorFlow computation graph components.
+                \item Implement all loss functions (AE, supervised, adversarial, moment losses).
+                \item Perform learning using the Adam optimizer.
+                \item Return a handles dictionary used to execute forward passes during synthetic data generation.
+            \end{itemize}
+        \end{itemize}
+
+
+        \item \textbf{Training Orchestration: \texttt{main.py}}
+        \begin{itemize}
+            \item \textbf{Purpose:}
+            Takes cleaned window arrays and version-specific hyperparameter overrides, executes AE and GAN training loops, and outputs real and synthetic NumPy arrays into each \texttt{baseline\_vX/} directory.
+
+            \item \textbf{Key Uses:}
+            \begin{itemize}
+                \item Load and assemble windowed data from \texttt{prep\_windows.py}.
+                \item Extract array shapes and initialize the full TimeGAN architecture.
+                \item Run the Autoencoder warmup stage then GAN training stages.
+                \item Save \texttt{train\_orig.npy}, \texttt{test\_orig.npy}, \texttt{synthetic\_orig.npy}, and their scaled counterparts.
+            \end{itemize}
+        \end{itemize}
+
+
+        \item \textbf{Evaluation Metrics: \texttt{eval\_metrics.py}}
+        \begin{itemize}
+            \item \textbf{Purpose:}
+            Takes real and synthetic NumPy arrays from a \texttt{baseline\_vX/} directory and outputs a JSON file of metric results.
+
+            \item \textbf{Key Uses:}
+            \begin{itemize}
+                \item Load \texttt{*.npy} arrays for real and synthetic data.
+                \item Compute all evaluation metrics (KS Max, WD Mean/Max, Frobenius norm, ACF RMSE, TSTR, KNN symmetry metrics).
+                \item Store results in \texttt{results\_vX\_metrics.json}.
+            \end{itemize}
+        \end{itemize}
+
+
+        \item \textbf{Visualization: \texttt{graphing.py}}
+        \begin{itemize}
+            \item \textbf{Purpose:}
+            Takes synthetic and real NumPy arrays for a version \texttt{X} and outputs PNG visualizations in the corresponding \texttt{baseline\_vX/} folder.
+
+            \item \textbf{Key Uses:}
+            \begin{itemize}
+                \item Load \texttt{train\_orig.npy} and \texttt{synthetic\_orig.npy}.
+                \item Plot GDP vs.\ Unemployment scatter distributions.
+                \item Plot GDP and Unemployment time series.
+                \item Save plots as PNG files for qualitative inspection.
+            \end{itemize}
+        \end{itemize}
+
+
+        \item \textbf{Sanity Checks: \texttt{sanity.py}}
+        \begin{itemize}
+            \item \textbf{Purpose:}
+            A small diagnostic script used to ensure version isolation and prevent accidental overwriting.  
+            Takes no formal input other than existing version folders and prints debugging information; not required for standard usage.
+        \end{itemize}
+
+    \end{itemize}
+
+
+    \subsection{Default Training Parameters}
 
     \begin{table}[h]
         \centering
@@ -717,7 +856,6 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
 
 }
 
-\nocite{*}
 \printbibliography
 
 \clearpage
