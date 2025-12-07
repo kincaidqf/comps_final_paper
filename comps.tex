@@ -279,19 +279,72 @@ Throughout this project I was able to make notable improvements in the performan
 
 If a model were to reach the goal of producing realistic synthetic macroeconomic data to the extent that said synthetic data was indistinguishable from real, then this raises a number of ethical concerns. Aside from the obvious like fabricating data, if applied to macroeconomic modelling techniques there is a risk of further exacerbating the divide between those who have the knowledge and wealth to take advantage of financial information and those who do not. Additionally, if synthetic data is used to help inform or train decision making in financial experts, there is the risk that they make decisions that impact real people's lives based on a made up scenario. Transparency on the generation process of synthetic data is vital to mitigating these risks.
 
-
-% Defer appendix material until after the bibliography so the bibliography
-% appears as part of the main paper and the following sections become Appendix.
-\AtEndDocument{%
-    \clearpage
-    \appendix
-    \section{Replication Instructions}
-    \section{Architecture Overview}
-}
-
 \printbibliography
 
 \clearpage
+
+\appendix
+
+\section{Replication Instructions}
+
+\section{Architecture Overview}
+\label{appendix:architecture-overview}
+
+\subsection*{Default Training Parameters}
+
+\begin{table}[h]
+    \centering
+    \caption{Default training parameters used in the baseline TimeGAN implementation.}
+    \label{table:default-params}
+    \begin{tabular}{ll}
+    \toprule
+    \textbf{Model Parameter} & \textbf{Default Value} \\
+    \midrule
+    $L$ (sequence length)     & 24 \\
+    $D$ (feature dimension)   & 4 \\
+    $z_{\text{dim}}$          & 4 \\
+    batch\_size               & 64 \\
+    ae\_warmup\_it            & 600 \\
+    gan\_iters                & 3000 \\
+    $\gamma$                  & 1.0 \\
+    learning\_rate            & 0.001 \\
+    module                    & \texttt{"gru"} \\
+    hidden\_dim               & 24 \\
+    num\_layers               & 2 \\
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+These are the training parameters passed into the model during training. They are also the primary hyperparameters varied during experimentation.
+
+\begin{itemize}
+    \item \textbf{$L$}: Length of each sliding window (number of time steps). In this project, $L = 24$ corresponds to a 24-year sequence.
+    
+    \item \textbf{$D$}: Number of dimensions in the training data (number of economic indicators). This was fixed at $D = 4$ for GDP growth, inflation rate, unemployment rate, and population growth.
+    
+    \item \textbf{$z_dim$}: Dimensionality of the random noise vectors fed into the generator, controlling generative diversity.
+    
+    \item \textbf{batch\_size}: Number of sliding windows passed to the model during each training step.
+    
+    \item \textit{ae\_warmup\_it}: Number of autoencoder warmup iterations prior to adversarial training.
+    
+    \item \textit{gan\_iters}: Number of full GAN training iterations.
+    
+    \item \textbf{$\gamma$}: Weighting coefficient balancing the supervised loss and adversarial loss components within the generator loss.
+    
+    \item \textbf{learning\_rate}: The step size used during optimization; controls how quickly model weights update during backpropagation.
+    
+    \item \textit{module}: The type of recurrent cell used in the model’s networks. Supported options include:
+    \begin{itemize}
+        \item \texttt{``gru''}: Gated Recurrent Unit; uses an update gate (memory retention) and reset gate (context forgetting). More lightweight and computationally efficient.
+        \item \texttt{``lstm''}: Long Short-Term Memory; uses three gates and maintains a cell state, offering greater robustness at higher computational cost.
+    \end{itemize}
+    
+    \item \textit{hidden\_dim}: Size of the hidden state in each neural network layer; determines the number of latent features used to encode temporal structure.
+    
+    \item \textit{num\_layers}: Number of stacked layers in the recurrent neural network architecture.
+\end{itemize}
+
 
 \onecolumn
 
