@@ -264,7 +264,7 @@ From \textcite{marti2020corrgan}, who applies adversarial techniques to sampling
 With there being one correlation matrix for both real vs real and one for synthetic vs synthetic distributions. These correlation matrices are then compared using the Frobenius norm, which calculates the same total difference between matrices in the same conceptual manner as calculating Euclidean distance between vectors. Though there is not a standard to aim for in terms of Frobenius score, lower is better as it implies that the relationships between features are more similar. I will be comparing Frobenius norms across tests as one of my essential tests. A lower Frob. norm implies that the datasets have more realistic inter-feature relationships.
 
 \section{Results and Discussion}
-\subsection{Initial Model Evaluation: Baseline Metrics (v0)}
+\subsection{Baseline Model Evaluation}
 My first test of the complete model used only the set of default parameters listed in Table \ref{table:default-params} (Appendix \ref{appendix:architecture-overview}). As a baseline I ran the evaluation metrics over comparisons between real and synthetic data, and between real training data and withheld real data. This established a real-vs-real benchmark for the evaluation methods: realistic values across all metrics indicated the procedures were sound, and parameter adjustments that moved model performance closer to this benchmark were treated as improvements.
 
 \begin{table}[t]
@@ -302,6 +302,61 @@ There was a large disparity in performance in the Frobenius difference in correl
 The most important difference between the two tests for my sake is the poor TSTR performance. The TSTR MSE of the v0 test was 1.096, significantly worse than the real baseline of 0.037 (Table \ref{table:baseline-v0-results}). The poor predictive score indicates that the synthetic data cannot reasonably be used to predict real data relationships. The synthetic data is not realistic enough for any sort of downstream application, which is how \textcite{yuan2024multifacetedevaluation} defines the real-world utility of synthetic data.
 
 In terms of novelty the scores are somewhat hard to interpret because it is a measurement of average absolute Euclidean distance over 4 dimensional datapoints. It seems however that a score of about 14 is realistic given the results of the real-real comparison. What stands out is that for the v0 test, there was a much higher degree of asymmetry (-3.144 vs 0.318) between the real-fake and fake-real KNN means (Table \ref{table:baseline-v0-results}). This implies that the synthetic data is asymmetric, meaning that v0 synthetic samples cluster in certain ranges (lower synthetic to real score) but fail to cover the full range of real data (higher real to synthetic score).
+
+\subsection{Final Results: Tuned Model}
+
+Overall from my initial baseline v0 to my final trial v14 there was substantial improvement across distributional, temporal, discriminative, and most importantly downstream application performance. The final positive incremental change of increasing hidden dimensions from 24-32 helped stabilize and enhance performance, balancing the distributional improvements of v4 with the predictive success of v10, while also having the lowest novelty asymmetry of all trials (See TABLE A, TABLE B).
+
+\begin{table}[t]
+    \centering
+    \caption{Performance improvements from the initial model (v0) to the tuned model (v14).}
+    \label{table:v0-v14-improvement}
+    {\small
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{0.95}
+    \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l c c c}
+        \toprule
+        \textbf{Metric} & \textbf{v0} & \textbf{v14} & \textbf{Improvement} \\
+        \midrule
+        KS Max            & 0.975  & 0.975  & 0\%      \\
+        WD Mean           & 0.206  & 0.183  & 12.56\%  \\
+        WD Max            & 0.384  & 0.362  & 6.07\%   \\
+        Frob Diff         & 3.432  & 2.621  & 30.94\%  \\
+        ACF RMSE          & 0.155  & 0.287  & --45.99\% \\
+        TSTR Mean         & 1.096  & 0.588  & 86.39\%  \\
+        KNN Mean S--R     & 12.728 & 13.202 & --       \\
+        KNN Mean R--S     & 15.755 & 15.611 & --       \\
+        KNN Asymmetry     & -3.144 & -2.409 & 30.51\% \\
+        \bottomrule
+    \end{tabular*}
+    }
+\end{table}
+
+The hidden dimensions directly control the capacity of the embedder, supervisor, generator, and recovery networks exposure to previous hidden states. A higher hidden dimension improved Frobenius difference, helping latent transitions become more realistic. It also better allows the supervisor to model lagged relationships, which helps inform how the generator generates realistic synthetic time steps. 
+
+Compared to v0, WD mean and max showed a moderate improvement, of 12.56\% and 6.07\% respectively–indicating that the model matches the shape of the real distributions better, and that distributions are not as narrowly clustered as in v0 (Table \ref{table:v0-v14-improvement}). There was a large improvement (30.94\% better performance) in Frobenius difference, indicating that cross-feature correlation was significantly closer to the real-real baseline (Table \ref{table:v0-v14-improvement}). This implies that the synthetic data has much more realistic intra-feature relationships than the initial v0 version. 
+
+The only metric where v14 actually performed worse than v0 was the autocorrelation structure (ACF RMSE). The change from an ACF RMSE of 0.155 in v0 to 0.287 in v14 indicates that there was more temporal volatility in v14 (Table \ref{table:v0-v14-improvement}). While this is a significantly worse score, in terms of my goals it is not necessarily concerning. The initial ACF RMSE score for v0 was very low, lower even than the real-real baseline (Table \ref{table:v0-v14-improvement}). This implies that the initial ACF RMSE measurements may have over-smoothed the temporal relationships, when in reality they may be a little more erratic. An ACF RMSE score of 0.287 is not concerningly high given that there were marked improvements in distribution, cross feature correlation, predictive scores, and novelty.
+
+The most significant improvement from v0 to v14 is in novelty, where TSTR Mean (across features) changed from 1.096 in v0 to 0.588 in v14 (Table \ref{table:v0-v14-improvement}). This marks an 86.39\% better performance in predictive ability, which I consider the most important metric for my case. The v14 trial was 86.39\% more accurate than v0 when it came to using synthetic data to predict the next time step in the real data, which indicates that with further refinement it may be possible to reach a point where synthetic data serves as a valid proxy for real data for downstream machine learning applications.
+
+Additionally the v14 test had significantly the lowest KNN asymmetry of all tests. The value of KNN means was not drastically different than in other tests, but the S-R mean and R-S mean only had an asymmetry of -2.409 (Table \ref{table:v0-v14-improvement}). As asymmetry moves closer to zero that means that the synthetic data more uniformly covers the real data distribution and has less of a tendency to cluster together. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\columnwidth]{v14results.png}
+    \caption{GDP Growth vs Unemployment Rate for v14 Synthetic vs Real Data}
+    \label{fig:v14-results}
+\end{figure}
+
+Overall between v0 and v14 the improvements almost across the board in evaluation metrics demonstrate that it was possible to take a stock implementation of the TimeGAN model and refine it for my use case. Visually the v14 distribution is clearly still clustered around the mean, which makes sense as it is easy for a model with exposure to a small amount of data to minimize average loss by just generating average values (see \ref{fig:v14-results}). However, the various iterations of parameter adjustments show that novelty and realism does not have to be a trade off, and with the right adjustments the model can be tuned to perform better on small datasets. I do not think that the v14 model is downstream application ready. In fact I would say that until a TSTR score ~0.037 (see \ref{table:baseline-v0-results}) is reached, then the synthetic data cannot be considered to have a real empirical application. As models continue to improve however, I do believe that the notable improvement in performance indicates that adversarial techniques could viably produce synthetic data from small training sets. The ability to optimize across distributional, temporal, and predictive performance through the combined autoencoder, supervised, and adversarial objectives demonstrates the potential future application of the TimeGAN model for accurately capturing the subtle temporal relationships between macroeconomic indicators.
+
+\subsection{Avenue for Future Study}
+For future research I would like to compare the performance of the TimeGAN model on small datasets to other non-adversarial methods. Throughout this process I observed that adversarial learning may too heavily penalize generations that are different from the mean when trained on such small datasets. Generating synthetic data at the mean of a distribution is the easiest way to produce stable, low average loss. I noticed that the efforts that I made to decrease the influence of the adversarial component of the model, such as adding noise to the discriminator and increasing gamma lead to some of the most significant improvements in model performance.
+
+I am curious if perhaps a framework like variational autoencoders (VAEs) or sequential VAEs could be applied to synthetic time series generation. Training may be more stable without a discriminator, which from my process I observed to be perhaps too powerful of a network for small datasets. VAEs are probabilistic models which learn a latent probability distribution and could then use that to generate then decode a synthetic latent distribution. In this approach it is somewhat the opposite of TimeGAN, which takes in a random distribution and attempts to generate it into a realistic synthetic distribution.  
+
+In retrospect, I also think that my research would be more applicable to generating data from taking an input of initial conditions. When I think of macroeconomic data and decision making, it is all based around what are the expected future movements of macroeconomic indicators. In my case, random macroeconomic datasets are not particularly useful. They may have better downstream applications than a specific prediction based on initial conditions, but overall are less likely to be applicable to actual decision making. It also would take some of the pattern recognition responsibility out of the model, as it would be given a set of realistic initial points to then generate from. My biggest concern with such a model is that you would need substantial training data to learn patterns from different initial conditions.
 
 
 \section{Ethical Considerations}
