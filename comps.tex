@@ -11,7 +11,10 @@
 % overwrite it again so related text shows as footnotes
 %\renewcommand{\fixme}[2][]{\textcolor{red}{#2\footnote{#1}}}
 
-\bibliography{references.bib}
+% Use biblatex (default backend=biber). A temporary change to bibtex was used
+% as a fallback during debugging and is now reverted.
+\usepackage[style=numeric,sorting=nyt]{biblatex}
+\addbibresource{references.bib}
 
 % include metadata in the generated pdf file
 \pdfinfo{
@@ -260,8 +263,46 @@ From \textcite{marti2020corrgan}, who applies adversarial techniques to sampling
 
 With there being one correlation matrix for both real vs real and one for synthetic vs synthetic distributions. These correlation matrices are then compared using the Frobenius norm, which calculates the same total difference between matrices in the same conceptual manner as calculating Euclidean distance between vectors. Though there is not a standard to aim for in terms of Frobenius score, lower is better as it implies that the relationships between features are more similar. I will be comparing Frobenius norms across tests as one of my essential tests. A lower Frob. norm implies that the datasets have more realistic inter-feature relationships.
 
-
 \section{Results and Discussion}
+\subsection{Initial Model Evaluation: Baseline Metrics (v0)}
+My first test of the complete model used only the set of default parameters listed in Table \ref{table:default-params} (Appendix \ref{appendix:architecture-overview}). As a baseline I ran the evaluation metrics over comparisons between real and synthetic data, and between real training data and withheld real data. This established a real-vs-real benchmark for the evaluation methods: realistic values across all metrics indicated the procedures were sound, and parameter adjustments that moved model performance closer to this benchmark were treated as improvements.
+
+\begin{table}[t]
+    \centering
+    \caption{Comparison of evaluation metrics between the real--real baseline and the initial synthetic baseline (v0).}
+    \label{table:baseline-v0-results}
+    {\small
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{0.95}
+    \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l c c}
+        \toprule
+        \textbf{Metric} & \textbf{Real Baseline} & \textbf{v0 Synthetic} \\
+        \midrule
+        KS Max              & 0.875  & 0.975  \\
+        WD Mean             & 0.174  & 0.206  \\
+        WD Max              & 0.341  & 0.384  \\
+        Frob Diff           & 1.438  & 3.432  \\
+        ACF RMSE            & 0.174  & 0.155  \\
+        TSTR MSE Mean       & 0.037  & 1.096  \\
+        KNN Mean S--R       & 14.361 & 12.728 \\
+        KNN Mean R--S       & 13.725 & 15.755 \\
+        KNN Asymmetry       & 0.318  & -3.144 \\
+        \bottomrule
+    \end{tabular*}
+    }
+\end{table}
+
+
+The only evaluation metric which seemed erroneous was the Kolmogorov--Smirnov (KS) test: even the real--real comparison in Table \ref{table:baseline-v0-results} reports a KS Max of 0.875, which corresponds to an effectively zero p-value. I attribute this to large regime shifts and differing starting conditions across countries and periods—sliding windows that include shocks or structural breaks produce markedly different empirical CDFs, yielding high KS distances even between distinct real samples. Therefore KS is of limited use here as a strict hypothesis test and is treated instead as a descriptive distance measure.
+
+Overall my synthetic baseline (v0) test performs similarly to the real-to-real comparison on several marginal and temporal metrics, but performs significantly worse on realism and predictive scores. Though both KS Max scores are high enough that you can reject $\alpha$ at any standard significance level, the v0 score was significantly higher, indicating poor distributional matching. This could be due to differences in starting conditions, as KS test is sensitive to temporal differences. Both WD measurements are higher in v0, but are relatively similar (Table \ref{table:baseline-v0-results}). This indicates that the model is getting rough distributional shapes, but is performing poorly at more extreme values (higher WD Max). Thus marginal distributions are not well matched, but distributional closeness is not drastically different from the real baseline.
+
+There was a large disparity in performance in the Frobenius difference in correlation matrices. The real baseline had a Frob score of 1.438, while v0 had a significantly higher score of 3.432 (Table \ref{table:baseline-v0-results}). This indicates that the v0 synthetic data does not at all mimic the covariance structure (inter-feature relationships) of the real data well. Surprisingly v0 has slightly better ACF RMSE than the real-real baseline. Most likely this is due to the fact that early GAN outputs could be oversmoothed, generating series without much temporal variation that creates artificially low autocorrelation, but is also part of the reason for the poor performance in Frobenius difference. 
+
+The most important difference between the two tests for my sake is the poor TSTR performance. The TSTR MSE of the v0 test was 1.096, significantly worse than the real baseline of 0.037 (Table \ref{table:baseline-v0-results}). The poor predictive score indicates that the synthetic data cannot reasonably be used to predict real data relationships. The synthetic data is not realistic enough for any sort of downstream application, which is how \textcite{yuan2024multifacetedevaluation} defines the real-world utility of synthetic data.
+
+In terms of novelty the scores are somewhat hard to interpret because it is a measurement of average absolute Euclidean distance over 4 dimensional datapoints. It seems however that a score of about 14 is realistic given the results of the real-real comparison. What stands out is that for the v0 test, there was a much higher degree of asymmetry (-3.144 vs 0.318) between the real-fake and fake-real KNN means (Table \ref{table:baseline-v0-results}). This implies that the synthetic data is asymmetric, meaning that v0 synthetic samples cluster in certain ranges (lower synthetic to real score) but fail to cover the full range of real data (higher real to synthetic score).
+
 
 \section{Ethical Considerations}
 As the overall goal of my project was to generate synthetic macroeconomic data capable of being used as a proxy for real data, it is important to assess the ethical implications of such a project. In a hypothetical scenario where synthetic macroeconomic data was to become widely used by economists/bankers, the primary ethical concern with my project becomes the question of who actually benefits from improved economic simulation, and who may be unintentionally excluded from those benefits.
@@ -279,72 +320,76 @@ Throughout this project I was able to make notable improvements in the performan
 
 If a model were to reach the goal of producing realistic synthetic macroeconomic data to the extent that said synthetic data was indistinguishable from real, then this raises a number of ethical concerns. Aside from the obvious like fabricating data, if applied to macroeconomic modelling techniques there is a risk of further exacerbating the divide between those who have the knowledge and wealth to take advantage of financial information and those who do not. Additionally, if synthetic data is used to help inform or train decision making in financial experts, there is the risk that they make decisions that impact real people's lives based on a made up scenario. Transparency on the generation process of synthetic data is vital to mitigating these risks.
 
+
+% Defer appendix material until after the bibliography so the bibliography
+% appears as part of the main paper and the following sections become Appendix.
+\AtEndDocument{%
+    \clearpage
+    \appendix
+    \section{Replication Instructions}
+    \section{Architecture Overview}
+    \label{appendix:architecture-overview}
+
+    \subsection*{Default Training Parameters}
+
+    \begin{table}[h]
+        \centering
+        \caption{Default training parameters used in the baseline TimeGAN implementation.}
+        \label{table:default-params}
+        \begin{tabular}{ll}
+        \toprule
+        \textbf{Model Parameter} & \textbf{Default Value} \\
+        \midrule
+        $L$ (sequence length)     & 24 \\
+        $D$ (feature dimension)   & 4 \\
+        $z_{\text{dim}}$          & 4 \\
+        batch\_size               & 64 \\
+        ae\_warmup\_it            & 600 \\
+        gan\_iters                & 3000 \\
+        $\gamma$                  & 1.0 \\
+        learning\_rate            & 0.001 \\
+        module                    & \texttt{"gru"} \\
+        hidden\_dim               & 24 \\
+        num\_layers               & 2 \\
+        \bottomrule
+        \end{tabular}
+    \end{table}
+
+    These are the training parameters passed into the model during training. They are also the primary hyperparameters varied during experimentation.
+
+    \begin{itemize}
+        \item \textbf{$L$}: Length of each sliding window (number of time steps). In this project, $L = 24$ corresponds to a 24-year sequence.
+        
+        \item \textbf{$D$}: Number of dimensions in the training data (number of economic indicators). This was fixed at $D = 4$ for GDP growth, inflation rate, unemployment rate, and population growth.
+        
+        \item \textbf{$z_dim$}: Dimensionality of the random noise vectors fed into the generator, controlling generative diversity.
+        
+        \item \textbf{batch\_size}: Number of sliding windows passed to the model during each training step.
+        
+        \item \textit{ae\_warmup\_it}: Number of autoencoder warmup iterations prior to adversarial training.
+        
+        \item \textit{gan\_iters}: Number of full GAN training iterations.
+        
+        \item \textbf{$\gamma$}: Weighting coefficient balancing the supervised loss and adversarial loss components within the generator loss.
+        
+        \item \textbf{learning\_rate}: The step size used during optimization; controls how quickly model weights update during backpropagation.
+        
+        \item \textit{module}: The type of recurrent cell used in the model’s networks. Supported options include:
+        \begin{itemize}
+            \item \texttt{``gru''}: Gated Recurrent Unit; uses an update gate (memory retention) and reset gate (context forgetting). More lightweight and computationally efficient.
+            \item \texttt{``lstm''}: Long Short-Term Memory; uses three gates and maintains a cell state, offering greater robustness at higher computational cost.
+        \end{itemize}
+        
+        \item \textit{hidden\_dim}: Size of the hidden state in each neural network layer; determines the number of latent features used to encode temporal structure.
+        
+        \item \textit{num\_layers}: Number of stacked layers in the recurrent neural network architecture.
+    \end{itemize}
+}
+
+\nocite{*}
 \printbibliography
 
 \clearpage
-
-\appendix
-
-\section{Replication Instructions}
-
-\section{Architecture Overview}
-\label{appendix:architecture-overview}
-
-\subsection*{Default Training Parameters}
-
-\begin{table}[h]
-    \centering
-    \caption{Default training parameters used in the baseline TimeGAN implementation.}
-    \label{table:default-params}
-    \begin{tabular}{ll}
-    \toprule
-    \textbf{Model Parameter} & \textbf{Default Value} \\
-    \midrule
-    $L$ (sequence length)     & 24 \\
-    $D$ (feature dimension)   & 4 \\
-    $z_{\text{dim}}$          & 4 \\
-    batch\_size               & 64 \\
-    ae\_warmup\_it            & 600 \\
-    gan\_iters                & 3000 \\
-    $\gamma$                  & 1.0 \\
-    learning\_rate            & 0.001 \\
-    module                    & \texttt{"gru"} \\
-    hidden\_dim               & 24 \\
-    num\_layers               & 2 \\
-    \bottomrule
-    \end{tabular}
-\end{table}
-
-These are the training parameters passed into the model during training. They are also the primary hyperparameters varied during experimentation.
-
-\begin{itemize}
-    \item \textbf{$L$}: Length of each sliding window (number of time steps). In this project, $L = 24$ corresponds to a 24-year sequence.
-    
-    \item \textbf{$D$}: Number of dimensions in the training data (number of economic indicators). This was fixed at $D = 4$ for GDP growth, inflation rate, unemployment rate, and population growth.
-    
-    \item \textbf{$z_dim$}: Dimensionality of the random noise vectors fed into the generator, controlling generative diversity.
-    
-    \item \textbf{batch\_size}: Number of sliding windows passed to the model during each training step.
-    
-    \item \textit{ae\_warmup\_it}: Number of autoencoder warmup iterations prior to adversarial training.
-    
-    \item \textit{gan\_iters}: Number of full GAN training iterations.
-    
-    \item \textbf{$\gamma$}: Weighting coefficient balancing the supervised loss and adversarial loss components within the generator loss.
-    
-    \item \textbf{learning\_rate}: The step size used during optimization; controls how quickly model weights update during backpropagation.
-    
-    \item \textit{module}: The type of recurrent cell used in the model’s networks. Supported options include:
-    \begin{itemize}
-        \item \texttt{``gru''}: Gated Recurrent Unit; uses an update gate (memory retention) and reset gate (context forgetting). More lightweight and computationally efficient.
-        \item \texttt{``lstm''}: Long Short-Term Memory; uses three gates and maintains a cell state, offering greater robustness at higher computational cost.
-    \end{itemize}
-    
-    \item \textit{hidden\_dim}: Size of the hidden state in each neural network layer; determines the number of latent features used to encode temporal structure.
-    
-    \item \textit{num\_layers}: Number of stacked layers in the recurrent neural network architecture.
-\end{itemize}
-
 
 \onecolumn
 
