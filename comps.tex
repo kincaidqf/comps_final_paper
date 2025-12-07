@@ -382,6 +382,142 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
     \clearpage
     \appendix
     \section{Replication Instructions}
+    \subsection{Software and Versioning}
+    The codebase for this project was built in using the VSCode IDE, with all programming aspects of the program done in Python version 3.13.3. The programs were run on a Mac with an M2 Pro chip and 16G RAM. The global data is stored in csv files in the data and datag2 folders. Notably in TimeGAN, TensorFlow uses the newest Keras V3 version rather than the older version used in the original TimeGAN implementation. The difference is that Keras V3 has different session management, so you have to ensure to disable eager execution in order to run the program in the same manner as the original (use tf.compat.v1.disable\_eager\_execution() at the top of the file). With the Keras V3 version the sessions are instantiated and run slightly differently, and if there was a future update to TensorFlow versioning then you would need to either explicitly set the version back to Keras V3 or adapt to the new version.
+
+    As far as evaluation metrics and mathematical components are concerned, these all use numpy, pandas and SciKit libraries which are more static and less frequently changed than TensorFlow versioning. Still in future implementation pay attention to where these libraries are called as they may have deprecated features that need to be adapted. All libraries and versioning requirements are stored in the requirements.txt file in the repository
+
+    \subsection{Run Instructions}
+
+    \begin{enumerate}
+        \item \textbf{Prepare and clean the dataset.}
+        \begin{itemize}
+            \item Ensure the raw macroeconomic dataset is correctly structured before passing it from \texttt{main.py} into \texttt{timegan.py}.
+            \item Although the initial goal was universal dataset compatibility, additional datasets require re-implementing:
+            \begin{itemize}
+            \item \texttt{data\_clean.py}
+            \item \texttt{prep\_windows.py}
+            \end{itemize}
+            to match file naming conventions and dataset dimensions.
+            \item The provided macroeconomic dataset works without modification.
+            \item The \texttt{g2} cleaning and window scripts serve as examples for adapting the pipeline to alternative datasets.
+        \end{itemize}
+        \item \textbf{Clean raw CSV into per-country files)}
+        \begin{itemize}
+            \item File: \texttt{data\_clean.py}
+            \item Arguments: 
+            \begin{itemize}
+                \item \texttt{--input}: Path to the raw dataset  
+                (default: \texttt{data/MacroData.csv})
+                \item \texttt{--outdir}: Output folder for cleaned \texttt{Country*.csv} files  
+                (default: \texttt{data/clean})
+            \end{itemize}
+            \item Example Usage:
+            \begin{lstlisting}
+                # Run with defaults\\
+                python3 data_clean.py
+
+                # Specify a different input file\\
+                python3 data\_clean.py --input data/alt/MacroData\_alt.csv
+
+                # Specify a different output directory\\
+                python3 data\_clean.py --outdir data/clean\_custom
+
+                # Specify both\\
+                python3 data\_clean.py --input raw/newdata.csv --outdir data/newclean
+            \end{lstlisting}
+        \end{itemize}
+
+        \item \textbf{Create Sliding Windows}
+        \begin{itemize}
+            \item File: \texttt{prep\_windows.py}
+            \item Arguments:
+            \begin{itemize}
+                \item \texttt{--data\_dir}: Directory containing cleaned \texttt{Country*.csv} files (default: \texttt{data/clean})
+                \item \texttt{--L}: Sliding window length (default: 24)
+                \item \texttt{--stride}: Step size between windows (default: 1)
+                \item \texttt{--val\_countries}: Validation countries (default: \texttt{Country7})
+                \item \texttt{--test\_countries}: Test countries (default: \texttt{Country8 Country9})
+            \end{itemize}
+            \item Example Usage:
+            \begin{lstlisting}
+                # Run with defaults\\
+                python3 prep\_windows.py\\
+
+                # Change window length\\
+                python3 prep\_windows.py --L 36\\
+
+                # Specify custom countries\\
+                python3 prep\_windows.py --val\_countries Country5 Country6 --test\_countries Country7 Country8\\
+
+                # Use a different cleaned dataset folder\\
+                python3 prep\_windows.py --data\_dir data/clean\_g2\\
+
+                # Full custom example
+                python3 prep\_windows.py \\
+                --data\_dir data/clean\_g2 \\
+                --L 36 \\
+                --stride 2 \\
+                --val\_countries Brazil \\
+                --test\_countries India China\\
+            \end{lstlisting}
+        \end{itemize}
+
+        \item \textbf{Run a TimeGAN Model Version}
+
+        \begin{itemize}
+            \item File: \texttt{main.py}
+            \item Run a particular experiment version with: 
+            \begin{itemize}
+                \item \texttt{python3 main.py X}
+                \item \texttt{X} is the version identifier (e.g., \texttt{0}, \texttt{3}, \texttt{14})
+            \end{itemize}
+            \item Versions are implemented as \texttt{elif} blocks in \texttt{main.py} to prevent overwriting results
+            \item Each version defines its own hyperparameter overrides
+            \item To create a new version:
+            \begin{itemize}
+                \item Create a unique version label
+                \item Add a corresponding \texttt{elif} block in \texttt{main.py}
+                \item Call it through the command line as shown above
+            \end{itemize}
+            \item Using a new dataset requires adapting:
+            \begin{itemize}
+                \item filename paths
+                \item input shapes
+                \item windowing behavior
+                \item dataset-specific normalization rules
+            \end{itemize}
+        \end{itemize}
+
+        \item \textbf{Synthetic Data Output}
+        \begin{itemize}
+            \item Each run automatically creates: \texttt{artifacts/baseline\_vX}
+            \item Synthetic sequences are saved as:
+            \begin{itemize}
+                \item \texttt{synthetic\_scaled.npy}
+                \item \texttt{synthetic\_orig.npy}
+            \end{itemize}
+            \item Training, validation and test sets are also saved to the same folder for reference
+        \end{itemize}
+
+        \item \textbf{Run Evaluation Metrics}
+        \begin{itemize}
+            \item File: \texttt{eval\_metrics.py}
+            \item Run with: \texttt{python3 eval\_metrics.py X}
+            \item Results saved as a \texttt{json} to: \texttt{artifacts/baseline\_vX/results/results\_vX\_metrics.json}
+        \end{itemize}
+
+        \item \textbf{Generate Diagnostic Graphs}
+        \begin{itemize}
+            \item File: \texttt{graphing.py}
+            \item Run with: \texttt{python3 graphing.py X}
+            \item Results saved as a \texttt{png} to: \texttt{artifacts/baseline\_vX/}
+            \item By default, graphs are produced for GDP growth and unemployment rate
+            \item Modify \texttt{graphing.py} if using datasets with different indicator names
+        \end{itemize}
+
+    \end{enumerate}
+
     \section{Architecture Overview}
     \label{appendix:architecture-overview}
     \subsection*{High-Level Repository Layout}
@@ -432,6 +568,8 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
         \item \textbf{.venv/} \hfill (Python virtual environment)
     \end{itemize}
 
+    \subsection{Layout Explanation}
+    The original TimeGAN repository was less modular than my version. I decided that for my use case I wanted to break each file out into a clear and distinct purpose, which allows the program to run in a modular way, so if you want to adapt to new data uses you can do so file by file. The artifacts folder contains all data results, with both the training/synthetic data saved in each file as well as the evaluation metrics and optionally graphics if you choose to run graphing.py on the trial number. Everything is based around trial numbers, and in main I chose to store trial numbers as elif statements because initially I was running into issues where I would change parameters and then accidentally overwrite results with different parameter runs. This way even if the model is re-run on the same trial number, it will use the original parameters used by that trial number and not rewrite old data. I do not think it is the most efficient and sustainable code design, but it has successfully gotten rid of the issue of rewriting trials.
 
     \subsection*{Default Training Parameters}
 
@@ -487,6 +625,7 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
         
         \item \textit{num\_layers}: Number of stacked layers in the recurrent neural network architecture.
     \end{itemize}
+    
     \section{Additional Results and Exploration}
     \subsection{Significant Trials and Results}
     \label{appendix:further-results}
