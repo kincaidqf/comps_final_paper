@@ -11,8 +11,9 @@
 % overwrite it again so related text shows as footnotes
 %\renewcommand{\fixme}[2][]{\textcolor{red}{#2\footnote{#1}}}
 
-% read references.bib for the bibtex data
-\bibliography{references.bib}
+% need to explicitly declare biblatex package to avoid conflict with bibtex
+\usepackage[style=numeric,sorting=nyt]{biblatex}
+\addbibresource{references.bib}
 
 % include metadata in the generated pdf file
 \pdfinfo{
@@ -47,7 +48,7 @@ By looking at both statistical factors and forecasting model performance, I hope
 \subsection{Macroeconomic Indicators}
 Macroeconomic indicators are data points which quantify the health of an entire economic market, usually at a country-wide level. They are impactful across all levels of society and business, and are even politically salient, as \textcite{ravallion2021macroeconomicmisery} notes the impact of macroeconomic indicators on electoral outcomes. The macroeconomic indicators that I will focus on will be gross domestic product growth (GDP), inflation rate (I), unemployment rate (R), and population growth (P), which were selected with insight from the research of  \textcite{ravallion2021macroeconomicmisery} and \textcite{baltazar2020sustainableeconomies}. Notably, population growth is not typically considered a macroeconomic indicator, but it helps control for unexplained factors in the other indicators. For example, if GDP and unemployment rates both go up, a possible explanation would be there was a substantial increase in population.
 
-\subsubsection{Selected Indicators}
+\subsubsection{Selected Indicators}`'
 \begin{description}
     \item[\textbf{GDP}] measures the entire monetary value of an economy, including all the goods and services produced by it and its constituents, its trade with other countries, and even the value of the intellectual property in the country. I will be using the rate of GDP growth expressed as a percentage change in GDP for this project.
     \item[\textbf{Inflation Rate}] is the percent change in price of a pre-defined theoretical ‘basket’ of goods. The ‘basket’ is a collection of common household goods which every individual regardless of income level will regularly purchase.  
@@ -69,26 +70,26 @@ Macroeconomic indicators are data points which quantify the health of an entire 
 \end{description}
 
 \subsection{Choosing TimeGAN}
-\label{sec:choosing_timegan}
+\label{sec:choosing-timegan}
 TimeGAN stands for \textbf{Time-Series Generative Adversarial Network}, a proprietary machine learning model created by \textcite{yoon2019timeseriesgenerative} combining supervised, unsupervised, and adversarial learning to encourage the model to follow the temporal dynamics of training data. The goal of their research stems from the inadequacy of other machine learning models to generate synthetic data that accurately takes temporal correlations into account \cite{yoon2019timeseriesgenerative}. 
 Unlike other GANs, TimeGAN is trained on a 3D dataset of multiple independent time-series, shaped as $[N, L, D]$, where $N$ is the number of sequences (e.g., countries), $L$ is the number of time steps, and $D$ is the number of dimensions (e.g., GDP, CPI). This makes TimeGAN perfect for my goal of training a model on multiple countries data.
 
 \subsection{TimeGAN Architecture}
-The main components of the TimeGAN architecture are pictured in Figure \ref{fig:TimeGAN-Architecture}. Notably the supervisor is not pictured, but operates in the latent space between the embedder and recovery networks. The partial derivates $\delta\mathcal{L}$ represent the loss values used to update each network during training. The training parameters (constant in each training iteration) are represented as $\theta$.
+The main components of the TimeGAN architecture are pictured in Figure \ref{fig:timegan-architecture}. Notably the supervisor is not pictured, but operates in the latent space between the embedder and recovery networks. The partial derivates $\delta\mathcal{L}$ represent the loss values used to update each network during training. The training parameters (constant in each training iteration) are represented as $\theta$.
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=\columnwidth]{TimeGAN training.png}
     \caption{Components of TimeGAN Training Architecture. Adapted from \textcite{yoon2019timeseriesgenerative}.}
-    \label{fig:TimeGAN-Architecture}
+    \label{fig:timegan-architecture}
 \end{figure}
 
 \begin{description}
-    \item[\textbf{Embedding Network}] The embedding network (\textit{e} in \ref{fig:TimeGAN-Architecture}) encodes the training data into a lower-dimensional latent space while preserving the temporal relationships. After reducing the dimensionality of the real data, the model is able to learn the structure and dynamics of the data when it is retrieved from the latent space.
-    \item[\textbf{Recovery Network}] The recovery network (\textit{r} in \ref{fig:TimeGAN-Architecture}) retrieves or decodes the data embedded in the latent space back into the original data-space. The combined network between the embedding and recovery networks forms the autoencoder section of the TimeGAN.
+    \item[\textbf{Embedding Network}] The embedding network (\textit{e} in \ref{fig:timegan-architecture}) encodes the training data into a lower-dimensional latent space while preserving the temporal relationships. After reducing the dimensionality of the real data, the model is able to learn the structure and dynamics of the data when it is retrieved from the latent space.
+    \item[\textbf{Recovery Network}] The recovery network (\textit{r} in \ref{fig:timegan-architecture}) retrieves or decodes the data embedded in the latent space back into the original data-space. The combined network between the embedding and recovery networks forms the autoencoder section of the TimeGAN.
     \item[\textbf{Supervisor Network}] The supervisor network (not pictured in diagram) works entirely in the latent space learning to predict the next step hidden state from the previous. The supervisor provides its synthetic latent transitions to the Generator Network, so that rather than trying to generate the entire dynamics of the dataset from scratch, the Generator has a per-timestep guidance on how to generate data that matches the supervisors hidden transitions.
-    \item[\textbf{Generator Network}] The generator network (\textit{g} in \ref{fig:TimeGAN-Architecture}) generates sequences (time-series) from an input series of a random distribution of Gaussian noise. Through competition with the discriminator and ‘model’ transitions from the supervisor, the generator learns how to better convert the random noise into a realistic distribution.
-    \item[\textbf{Discriminator Network}] The discriminator network (\textit{d} in \ref{fig:TimeGAN-Architecture}) is the adversarial part of the model which attempts to distinguish between real and synthetic generations. Its observations are used to guide the generator to create more realistic output.
+    \item[\textbf{Generator Network}] The generator network (\textit{g} in \ref{fig:timegan-architecture}) generates sequences (time-series) from an input series of a random distribution of Gaussian noise. Through competition with the discriminator and ‘model’ transitions from the supervisor, the generator learns how to better convert the random noise into a realistic distribution.
+    \item[\textbf{Discriminator Network}] The discriminator network (\textit{d} in \ref{fig:timegan-architecture}) is the adversarial part of the model which attempts to distinguish between real and synthetic generations. Its observations are used to guide the generator to create more realistic output.
 \end{description}
 
 What makes this model unique is that the embedding and recovery networks together form the autoencoder to refine latent representations, while the supervisor learns time-step shifted latent transformations (the transition from latent representation at time t to time t+1). The autoencoder refined and supervisor time-shifted, latent patterns help the generator to create realistic data for the next time step based on the current time step. The adversarial component of the discriminator provides further reinforcement on generating quality synthetic sequences. The TimeGAN performs these functions described above iteratively, allowing it to improve how it encodes features and generates representations \cite{yoon2019timeseriesgenerative}. The combination of GAN and autoencoder architecture make a TimeGAN the perfect model for my project: optimized to generate realistic time series data.
@@ -187,7 +188,7 @@ My data points of GDP growth, inflation rate, unemployment rate, and population 
 
 In order to control for the absolute value differences between the different indicators and their scaling, everything was processed using a standard min-max scalar compression to [-1,1], with the range of the data being saved in order to decompress the synthetic series at the end for comparison.
 
-The most significant pre-processing decision that I made was to divide the datasets into batches of sliding windows. With only 9 training countries, without any changes I would have had a [9, 56, 4] training dataset (see \ref{sec:choosing_timegan} for training shape). With only 9 input series of length 56, this was simply too small of a dataset to do any real training on. As a way of combatting this, I broke each time series into a set of sliding windows (see Figure \ref{fig:sliding-window}). A window represents a sequence of a chosen length; in this case I chose 24 as the window length, as a 24 year period is a long enough time to observe macroeconomic changes while still allowing for the data to be divided up into many sequences. My stride length for the sliding windows was 1, so the start time of each window was incremented by 1. After cleaning to ignore windows which were missing datapoints, this left me with 155 windows available for training, with some withheld for testing. 
+The most significant pre-processing decision that I made was to divide the datasets into batches of sliding windows. With only 9 training countries, without any changes I would have had a [9, 56, 4] training dataset (see \ref{sec:choosing-timegan} for training shape). With only 9 input series of length 56, this was simply too small of a dataset to do any real training on. As a way of combatting this, I broke each time series into a set of sliding windows (see Figure \ref{fig:sliding-window}). A window represents a sequence of a chosen length; in this case I chose 24 as the window length, as a 24 year period is a long enough time to observe macroeconomic changes while still allowing for the data to be divided up into many sequences. My stride length for the sliding windows was 1, so the start time of each window was incremented by 1. After cleaning to ignore windows which were missing datapoints, this left me with 155 windows available for training, with some withheld for testing. 
 
 \begin{figure}[h]
     \centering
@@ -419,20 +420,18 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
                 \item \texttt{--outdir}: Output folder for cleaned \texttt{Country*.csv} files  
                 (default: \texttt{data/clean})
             \end{itemize}
-            \item Example Usage:
-            \begin{lstlisting}
-                # Run with defaults\\
-                python3 data_clean.py
+            \item Example Usage:\\
+            \texttt{\# Run with defaults} \\
+            \texttt{python3 data\_clean.py} \\[6pt]
 
-                # Specify a different input file\\
-                python3 data\_clean.py --input data/alt/MacroData\_alt.csv
+            \texttt{\# Specify a different input file} \\
+            \texttt{python3 data\_clean.py --input data/alt/MacroData\_alt.csv} \\[6pt]
 
-                # Specify a different output directory\\
-                python3 data\_clean.py --outdir data/clean\_custom
+            \texttt{\# Specify a different output directory} \\
+            \texttt{python3 data\_clean.py --outdir data/clean\_custom} \\[6pt]
 
-                # Specify both\\
-                python3 data\_clean.py --input raw/newdata.csv --outdir data/newclean
-            \end{lstlisting}
+            \texttt{\# Specify both} \\
+            \texttt{python3 data\_clean.py --input raw/newdata.csv --outdir data/newclean} \\
         \end{itemize}
 
         \item \textbf{Create Sliding Windows}
@@ -446,28 +445,26 @@ If a model were to reach the goal of producing realistic synthetic macroeconomic
                 \item \texttt{--val\_countries}: Validation countries (default: \texttt{Country7})
                 \item \texttt{--test\_countries}: Test countries (default: \texttt{Country8 Country9})
             \end{itemize}
-            \item Example Usage:
-            \begin{lstlisting}
-                # Run with defaults\\
-                python3 prep\_windows.py\\
+            \item Example Usage:\\
+            \texttt{\# Run with defaults} \\
+            \texttt{python3 prep\_windows.py} \\[6pt]
 
-                # Change window length\\
-                python3 prep\_windows.py --L 36\\
+            \texttt{\# Change window length} \\
+            \texttt{python3 prep\_windows.py --L 36} \\[6pt]
 
-                # Specify custom countries\\
-                python3 prep\_windows.py --val\_countries Country5 Country6 --test\_countries Country7 Country8\\
+            \texttt{\# Specify custom countries} \\
+            \texttt{python3 prep\_windows.py --val\_countries Country5 Country6 --test\_countries Country7 Country8} \\[6pt]
 
-                # Use a different cleaned dataset folder\\
-                python3 prep\_windows.py --data\_dir data/clean\_g2\\
+            \texttt{\# Use a different cleaned dataset folder} \\
+            \texttt{python3 prep\_windows.py --data\_dir data/clean\_g2} \\[6pt]
 
-                # Full custom example
-                python3 prep\_windows.py \\
-                --data\_dir data/clean\_g2 \\
-                --L 36 \\
-                --stride 2 \\
-                --val\_countries Brazil \\
-                --test\_countries India China\\
-            \end{lstlisting}
+            \texttt{\# Full custom example} \\
+            \texttt{python3 prep\_windows.py} \\
+            \texttt{\ \ --data\_dir data/clean\_g2} \\
+            \texttt{\ \ --L 36} \\
+            \texttt{\ \ --stride 2} \\
+            \texttt{\ \ --val\_countries Brazil} \\
+            \texttt{\ \ --test\_countries India China} \\
         \end{itemize}
 
         \item \textbf{Run a TimeGAN Model Version}
